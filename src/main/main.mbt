@@ -1,4 +1,4 @@
-// Write some simple 
+// Write some simple code 
 fn main {
   let message = @lib.greet("GitHub")
   println(message)
