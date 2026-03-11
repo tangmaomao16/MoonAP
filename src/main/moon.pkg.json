@@ -1,0 +1,6 @@
+{
+  "is-main": true,
+  "import": [
+    { "path": "yourusername/hello-moonbit/lib", "alias": "lib" }
+  ]
+}
