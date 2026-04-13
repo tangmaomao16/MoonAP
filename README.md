@@ -1,6 +1,6 @@
 # MoonAP
 
-MoonAP 是一个面向 MoonBit 大型软件合成场景的原型网页：
+MoonAP: MoonBit Agent Playground：
 
 - 用户用自然语言描述需求
 - 系统生成 MoonBit 程序
