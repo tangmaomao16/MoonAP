@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
 import { PORT, ROOT_DIR } from "./lib/config.mjs";
-import { generateMoonAPResponse } from "./lib/chat-engine-v2.mjs";
+import { generateMoonAPResponse } from "./lib/chat-engine-v3.mjs";
 import { inspectLocalFile } from "./lib/local-file-service.mjs";
 import { compileMoonBitToWasm } from "./lib/moonbit-compiler.mjs";
 
@@ -23,7 +23,7 @@ function sendText(response, statusCode, text, contentType = "text/plain; charset
 }
 
 async function serveStaticFile(requestPath, response) {
-  const normalized = requestPath === "/" ? "/app.html" : requestPath;
+  const normalized = requestPath === "/" ? "/chat.html" : requestPath;
   const filePath = path.join(WEB_ROOT, normalized);
   const safeRoot = path.resolve(WEB_ROOT);
   const safeFilePath = path.resolve(filePath);
@@ -85,6 +85,7 @@ const server = http.createServer(async (request, response) => {
       const prompt = String(body.message || "").trim();
       const history = Array.isArray(body.history) ? body.history : [];
       const filePath = String(body.filePath || "").trim();
+      const llmConfig = body.llmConfig && typeof body.llmConfig === "object" ? body.llmConfig : {};
 
       if (!prompt) {
         sendJson(response, 400, { error: "message is required" });
@@ -95,23 +96,28 @@ const server = http.createServer(async (request, response) => {
         prompt,
         history,
         filePath,
+        llmConfig,
       });
-      const compiled = await compileMoonBitToWasm(result.artifact.moonbitCode);
+
+      let compiled = null;
+      if (result.artifact?.moonbitCode) {
+        compiled = await compileMoonBitToWasm(result.artifact.moonbitCode);
+      }
 
       sendJson(response, 200, {
         ok: true,
+        mode: result.mode,
         assistant: result.assistant,
         fileInfo: result.fileInfo,
         analysis: result.analysis,
-        artifact: {
-          title: result.artifact.title,
-          summary: result.artifact.summary,
-          moonbitCode: result.artifact.moonbitCode,
-          wasmBase64: compiled.wasmBase64,
-          buildLog: compiled.buildLog,
-          adapter: result.artifact.adapter,
-          warning: result.artifact.warning || "",
-        },
+        artifact: result.artifact
+          ? {
+              ...result.artifact,
+              wasmBase64: compiled?.wasmBase64 || "",
+              buildLog: compiled?.buildLog || "",
+              warning: result.artifact.warning || "",
+            }
+          : null,
       });
     } catch (error) {
       sendJson(response, 500, {

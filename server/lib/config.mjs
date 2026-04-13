@@ -12,7 +12,16 @@ export function getModelConfig() {
   };
 }
 
-export function useRemoteModel() {
-  const { baseUrl, apiKey } = getModelConfig();
+export function resolveModelConfig(overrides = {}) {
+  const fallback = getModelConfig();
+  return {
+    baseUrl: String(overrides.baseUrl || fallback.baseUrl || "").trim(),
+    apiKey: String(overrides.apiKey || fallback.apiKey || "").trim(),
+    model: String(overrides.model || fallback.model || "gpt-4.1-mini").trim(),
+  };
+}
+
+export function useRemoteModel(overrides = {}) {
+  const { baseUrl, apiKey } = resolveModelConfig(overrides);
   return Boolean(baseUrl && apiKey);
 }

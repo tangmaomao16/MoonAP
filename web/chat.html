@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MoonAP</title>
+    <link rel="stylesheet" href="/chat.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">M</div>
+          <div>
+            <p class="eyebrow">MoonAP</p>
+            <h1>Local-first agent chat</h1>
+          </div>
+        </div>
+
+        <section class="sidebar-card">
+          <h2>LLM Settings</h2>
+          <label class="field"><span>Base URL</span><input id="llm-base-url" type="text" placeholder="https://your-endpoint/v1" /></label>
+          <label class="field"><span>API Key</span><input id="llm-api-key" type="password" placeholder="sk-..." /></label>
+          <label class="field"><span>Model</span><input id="llm-model" type="text" placeholder="gpt-4.1-mini" /></label>
+          <button id="save-llm-settings" class="ghost-button" type="button">Save Settings</button>
+          <p class="microcopy">If left empty, MoonAP uses the local fallback logic.</p>
+        </section>
+
+        <section class="sidebar-card">
+          <h2>Local File</h2>
+          <label class="field"><span>File Path</span><input id="file-path-input" type="text" placeholder="C:\data\sample.fastq" /></label>
+          <div class="stack-row">
+            <button id="inspect-file-button" class="ghost-button" type="button">Inspect</button>
+            <button id="clear-file-button" class="ghost-button" type="button">Clear</button>
+          </div>
+          <div id="file-summary" class="file-summary">No local file attached.</div>
+        </section>
+
+        <section class="sidebar-card tips">
+          <h2>How it works</h2>
+          <p>Normal chat stays in conversation mode.</p>
+          <p>When you attach a local file and ask for analysis, MoonAP switches to the MoonBit -> Wasm path.</p>
+        </section>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Chat</p>
+            <h2>Talk to MoonAP</h2>
+          </div>
+          <div class="status-group">
+            <span id="mode-badge" class="status-badge">mode: chat</span>
+            <span id="adapter-badge" class="status-badge">adapter: local</span>
+            <span id="run-badge" class="status-badge">wasm: idle</span>
+          </div>
+        </header>
+
+        <section id="messages" class="messages"></section>
+
+        <form id="chat-form" class="composer">
+          <textarea id="prompt-input" rows="3" placeholder="Message MoonAP... Example: please analyze this FastQ file and count N bases."></textarea>
+          <div class="composer-row">
+            <button id="seed-chat" class="ghost-button" type="button">Seed Chat</button>
+            <button id="seed-analysis" class="ghost-button" type="button">Seed Analysis</button>
+            <button id="send-button" type="submit">Send</button>
+          </div>
+        </form>
+      </main>
+
+      <aside class="workbench">
+        <section class="workbench-card">
+          <div class="card-header"><h3>Local Analysis</h3></div>
+          <pre id="analysis-output">No local analysis yet.</pre>
+        </section>
+
+        <section class="workbench-card">
+          <div class="card-header">
+            <h3>MoonBit Artifact</h3>
+            <button id="run-button" class="ghost-button" type="button" disabled>Run Wasm</button>
+          </div>
+          <p id="artifact-title" class="artifact-title">No artifact yet</p>
+          <p id="artifact-summary" class="artifact-summary">MoonBit code will appear here only when file analysis mode is triggered.</p>
+          <p id="artifact-warning" class="artifact-warning"></p>
+          <pre id="code-output">// waiting for generated code...</pre>
+        </section>
+
+        <section class="workbench-card">
+          <div class="card-header"><h3>Program Output</h3></div>
+          <pre id="program-output">waiting for wasm...</pre>
+        </section>
+
+        <section class="workbench-card">
+          <div class="card-header"><h3>Build Log</h3></div>
+          <pre id="build-log">No MoonBit build has been run yet.</pre>
+        </section>
+      </aside>
+    </div>
+
+    <script type="module" src="/chat.js"></script>
+  </body>
+</html>
