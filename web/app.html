@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MoonAP</title>
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <section class="hero-card">
+        <p class="eyebrow">MoonAP</p>
+        <h1>让大模型生成 MoonBit，再把分析任务带回你的本地文件和浏览器。</h1>
+        <p class="hero-copy">
+          这一版 MoonAP 同时支持聊天式需求交互和本地文件分析。你可以先读取一个本地文件路径，再用自然语言要求系统做
+          FastQ、CSV、JSON 或通用文本统计。右侧会继续保留 MoonBit 到 WebAssembly 的演示链路。
+        </p>
+        <div class="hero-badges">
+          <span>持续对话</span>
+          <span>本地文件分析</span>
+          <span>MoonBit Wasm Demo</span>
+        </div>
+      </section>
+
+      <main class="workspace">
+        <section class="chat-panel">
+          <div class="panel-header">
+            <div>
+              <p class="panel-label">Conversation</p>
+              <h2>需求与文件上下文</h2>
+            </div>
+            <button id="seed-demo" class="ghost-button">填入示例</button>
+          </div>
+
+          <section class="file-panel">
+            <label class="field-label" for="file-path-input">本地文件路径</label>
+            <div class="file-input-row">
+              <input id="file-path-input" type="text" placeholder="例如：C:\\data\\sample.fastq" />
+              <button id="inspect-file-button" type="button" class="ghost-button">读取文件信息</button>
+            </div>
+            <p class="hint">
+              说明：MoonAP 运行在你的本机时，可以直接读取这里填写的本地文件路径并做真实分析。
+            </p>
+            <div id="file-summary" class="file-summary">
+              <p>尚未选择文件。</p>
+            </div>
+          </section>
+
+          <div id="messages" class="messages"></div>
+
+          <form id="chat-form" class="composer">
+            <textarea
+              id="prompt-input"
+              placeholder="例如：请统计这个 FastQ 文件中 N 碱基的个数和比例，并给我一段对应的 MoonBit 示例程序。"
+              rows="4"
+            ></textarea>
+            <div class="composer-footer">
+              <p class="hint">提示：如果没有配置远端模型，MoonAP 会先使用本地生成器和本地分析器完成演示。</p>
+              <button type="submit" id="send-button">开始分析</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="artifact-panel">
+          <div class="panel-header">
+            <div>
+              <p class="panel-label">Artifact</p>
+              <h2>分析结果、代码与运行输出</h2>
+            </div>
+            <div class="status-group">
+              <span id="adapter-badge" class="status-badge">adapter: waiting</span>
+              <span id="run-badge" class="status-badge">wasm: idle</span>
+            </div>
+          </div>
+
+          <div class="result-card">
+            <h3 id="artifact-title">等待生成</h3>
+            <p id="artifact-summary">完成对话或文件分析后，这里会显示摘要、MoonBit 代码和 Wasm 运行结果。</p>
+            <p id="artifact-warning" class="warning"></p>
+          </div>
+
+          <section class="analysis-card">
+            <div class="subheader">
+              <h3>Local Analysis</h3>
+            </div>
+            <pre id="analysis-output">waiting for local analysis...</pre>
+          </section>
+
+          <div class="grid">
+            <section class="code-card">
+              <div class="subheader">
+                <h3>MoonBit</h3>
+                <button id="run-button" class="ghost-button" disabled>在浏览器运行</button>
+              </div>
+              <pre id="code-output"><code>// waiting for generated code...</code></pre>
+            </section>
+
+            <section class="output-card">
+              <div class="subheader">
+                <h3>Program Output</h3>
+              </div>
+              <pre id="program-output">waiting for wasm...</pre>
+            </section>
+          </div>
+
+          <section class="build-card">
+            <div class="subheader">
+              <h3>Build Log</h3>
+            </div>
+            <pre id="build-log">moon build output will appear here.</pre>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

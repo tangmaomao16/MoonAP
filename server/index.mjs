@@ -2,7 +2,8 @@ import fs from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
 import { PORT, ROOT_DIR } from "./lib/config.mjs";
-import { generateMoonBitArtifact } from "./lib/chat-engine.mjs";
+import { generateMoonAPResponse } from "./lib/chat-engine-v2.mjs";
+import { inspectLocalFile } from "./lib/local-file-service.mjs";
 import { compileMoonBitToWasm } from "./lib/moonbit-compiler.mjs";
 
 const WEB_ROOT = path.join(ROOT_DIR, "web");
@@ -22,7 +23,7 @@ function sendText(response, statusCode, text, contentType = "text/plain; charset
 }
 
 async function serveStaticFile(requestPath, response) {
-  const normalized = requestPath === "/" ? "/index.html" : requestPath;
+  const normalized = requestPath === "/" ? "/app.html" : requestPath;
   const filePath = path.join(WEB_ROOT, normalized);
   const safeRoot = path.resolve(WEB_ROOT);
   const safeFilePath = path.resolve(filePath);
@@ -83,31 +84,56 @@ const server = http.createServer(async (request, response) => {
       const body = await readJsonBody(request);
       const prompt = String(body.message || "").trim();
       const history = Array.isArray(body.history) ? body.history : [];
+      const filePath = String(body.filePath || "").trim();
 
       if (!prompt) {
         sendJson(response, 400, { error: "message is required" });
         return;
       }
 
-      const artifact = await generateMoonBitArtifact(prompt, history);
-      const compiled = await compileMoonBitToWasm(artifact.moonbitCode);
+      const result = await generateMoonAPResponse({
+        prompt,
+        history,
+        filePath,
+      });
+      const compiled = await compileMoonBitToWasm(result.artifact.moonbitCode);
 
       sendJson(response, 200, {
         ok: true,
-        assistant: {
-          role: "assistant",
-          content: artifact.summary,
-        },
+        assistant: result.assistant,
+        fileInfo: result.fileInfo,
+        analysis: result.analysis,
         artifact: {
-          title: artifact.title,
-          summary: artifact.summary,
-          moonbitCode: artifact.moonbitCode,
+          title: result.artifact.title,
+          summary: result.artifact.summary,
+          moonbitCode: result.artifact.moonbitCode,
           wasmBase64: compiled.wasmBase64,
           buildLog: compiled.buildLog,
-          adapter: artifact.adapter,
-          warning: artifact.warning || "",
+          adapter: result.artifact.adapter,
+          warning: result.artifact.warning || "",
         },
       });
+    } catch (error) {
+      sendJson(response, 500, {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && request.url === "/api/files/inspect") {
+    try {
+      const body = await readJsonBody(request);
+      const filePath = String(body.path || "").trim();
+
+      if (!filePath) {
+        sendJson(response, 400, { ok: false, error: "path is required" });
+        return;
+      }
+
+      const fileInfo = await inspectLocalFile(filePath);
+      sendJson(response, 200, { ok: true, fileInfo });
     } catch (error) {
       sendJson(response, 500, {
         ok: false,
