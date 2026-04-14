@@ -1,4 +1,5 @@
 import { resolveModelConfig } from "./config.mjs";
+import { MOONBIT_AGENT_SKILL } from "./moonbit-agent-skill.mjs";
 
 const RETRYABLE_REMOTE_CODES = ["1234", "1312"];
 const ZAI_GENERAL_ENDPOINT = "https://api.z.ai/api/paas/v4/";
@@ -279,6 +280,7 @@ function buildProtocolAwareSystemPrompt(protocol = null) {
 
   return [
     "You are MoonAP, an expert MoonBit code generator.",
+    MOONBIT_AGENT_SKILL,
     `Return strict JSON with keys: ${requiredKeys.join(", ")}.`,
     "sourceFiles is required and must be an array of { path, content } objects.",
     "cmd/main/main.mbt must exist in sourceFiles.",

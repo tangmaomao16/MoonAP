@@ -1,3 +1,5 @@
+import { MOONBIT_AGENT_SKILL } from "./moonbit-agent-skill.js";
+
 const form = document.getElementById("chat-form");
 const messages = document.getElementById("messages");
 const promptInput = document.getElementById("prompt-input");
@@ -761,6 +763,7 @@ function buildBrowserRemoteSystemPrompt(mode) {
   const protocol = browserTaskKernelProtocol(mode);
   return [
     "You are MoonAP, an expert MoonBit code generator.",
+    MOONBIT_AGENT_SKILL,
     "Return strict JSON only.",
     "Required keys: title, summary, moonbitCode, sourceFiles, projectManifest, skills, verificationGate, taskKernelProtocol.",
     "sourceFiles must be an array of { path, content } objects.",
