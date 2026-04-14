@@ -102,6 +102,16 @@ const MODE_DETAILS = {
 };
 
 const LLM_PRESETS = {
+  siliconflow: {
+    baseUrl: "https://api.siliconflow.cn/v1",
+    model: "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
+    label: "SiliconFlow preset loaded. Paste your SiliconFlow API key and save settings.",
+  },
+  gemini3pro: {
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
+    model: "gemini-3-flash-preview",
+    label: "Gemini preset loaded. Paste your Google AI Studio API key and save settings.",
+  },
   glm51: {
     baseUrl: "https://api.z.ai/api/paas/v4/",
     model: "glm-5.1",
@@ -282,7 +292,7 @@ function updateApiBanner() {
   apiBannerTitle.textContent = "Connect your LLM API";
   apiBannerBadge.textContent = "Needs API";
   apiBannerBadge.className = "mini-badge cloud-badge";
-  apiBannerCopy.textContent = "Add your GLM 5.1 or OpenRouter credentials on the left for real cloud chat and live MoonBit generation. Without an API key, open the Skill Library to run built-in skills like FastQ analysis.";
+  apiBannerCopy.textContent = "Add your LLM credentials on the left for real cloud chat and live MoonBit generation. Without an API key, open the Skill Library to run built-in skills like FastQ analysis.";
 }
 
 function addMessage(role, content) {
@@ -385,16 +395,24 @@ function renderBrowserFileInfo(file) {
   ].join("");
 }
 
+function ensureArray(value) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  if (typeof value === "object") return [value];
+  return [];
+}
+
 function renderVerificationGate(checks = []) {
-  if (!checks.length) {
+  const items = ensureArray(checks);
+  if (!items.length) {
     verificationOutput.textContent = "No verification gate yet.";
     return;
   }
 
-  verificationOutput.textContent = checks
+  verificationOutput.textContent = items
     .map((check) => {
       const status = check.passed ? "PASS" : "FAIL";
-      return `[${status}] ${check.name} (${check.level})\n${check.detail}`;
+      return `[${status}] ${check.name || "check"} (${check.level || "Contract"})\n${check.detail || "No detail provided."}`;
     })
     .join("\n\n");
 }
@@ -412,7 +430,7 @@ function renderProjectManifest(manifest) {
     "",
     "files:",
   ];
-  const files = (manifest.projectFiles || []).map((file) =>
+  const files = ensureArray(manifest.projectFiles).map((file) =>
     `- ${file.path} | ${file.language} | ${file.purpose}`
   );
   manifestOutput.textContent = [...header, ...files].join("\n");
@@ -433,10 +451,10 @@ function renderTaskKernelProtocol(protocol = null) {
     `finalize = ${protocol.finalizeFn}`,
     "",
     "host responsibilities:",
-    ...(protocol.hostResponsibilities || []).map((item) => `- ${item}`),
+    ...ensureArray(protocol.hostResponsibilities).map((item) => `- ${item}`),
     "",
     "kernel responsibilities:",
-    ...(protocol.kernelResponsibilities || []).map((item) => `- ${item}`),
+    ...ensureArray(protocol.kernelResponsibilities).map((item) => `- ${item}`),
   ].join("\n");
 }
 
@@ -452,12 +470,13 @@ function renderSourceFiles(sourceFiles = []) {
 }
 
 function renderSkills(skills = []) {
-  if (!skills.length) {
+  const items = ensureArray(skills);
+  if (!items.length) {
     skillOutput.textContent = "No reusable skills yet.";
     return;
   }
 
-  skillOutput.textContent = skills
+  skillOutput.textContent = items
     .map((skill) => `- ${skill.name} [${skill.category}]\n  ${skill.summary}`)
     .join("\n\n");
 }
@@ -471,9 +490,9 @@ function renderBenchmarkProfile(profile = null) {
   const lines = [
     `primary scenario = ${profile.scenario}`,
     `current input = ${profile.currentInput}`,
-    `benchmark tiers = ${(profile.benchmarkTiers || []).join(" / ")}`,
-    `recommended chunk sizes = ${(profile.recommendedChunkSizes || []).join(" / ")}`,
-    `evaluation focus = ${(profile.evaluationFocus || []).join(", ")}`,
+    `benchmark tiers = ${ensureArray(profile.benchmarkTiers).join(" / ")}`,
+    `recommended chunk sizes = ${ensureArray(profile.recommendedChunkSizes).join(" / ")}`,
+    `evaluation focus = ${ensureArray(profile.evaluationFocus).join(", ")}`,
     `generated source files = ${profile.generatedFileCount}`,
   ];
 
@@ -494,6 +513,54 @@ function renderBenchmarkProfile(profile = null) {
 
 function renderBenchmarkReport(report = "") {
   benchmarkReportOutput.textContent = report || "No benchmark report yet.";
+}
+
+function summarizeArtifact(artifact = null) {
+  if (!artifact || typeof artifact !== "object") {
+    return "MoonAP did not receive a MoonBit artifact.";
+  }
+
+  const sourceFiles = ensureArray(artifact.sourceFiles);
+  const verificationGate = ensureArray(artifact.verificationGate);
+  const skills = ensureArray(artifact.skills);
+  const parts = [
+    `artifact: ${artifact.title || "Generated MoonBit Program"}`,
+    `build: ${artifact.wasmBase64 ? "Wasm ready" : "MoonBit generated"}`,
+    `source files: ${sourceFiles.length}`,
+    `verification checks: ${verificationGate.length}`,
+    `skills: ${skills.length}`,
+  ];
+
+  if (artifact.taskKernelProtocol?.protocolName) {
+    parts.push(`protocol: ${artifact.taskKernelProtocol.protocolName}`);
+  }
+
+  if (artifact.warning) {
+    parts.push(`warning: ${artifact.warning}`);
+  }
+
+  return parts.join("\n");
+}
+
+function populateArtifactPanel(artifact, analysis = null) {
+  artifactTitle.textContent = artifact.title;
+  artifactSummary.textContent = artifact.summary;
+  artifactWarning.textContent = artifact.warning || "";
+  codeOutput.textContent = artifact.moonbitCode;
+  renderSourceFiles(artifact.sourceFiles || []);
+  renderVerificationGate(artifact.verificationGate || []);
+  renderProjectManifest(artifact.projectManifest || null);
+  renderTaskKernelProtocol(artifact.taskKernelProtocol || null);
+  renderBenchmarkProfile(artifact.benchmarkProfile || null);
+  renderBenchmarkReport(analysis?.benchmarkReport || "");
+  renderSkills(artifact.skills || []);
+  buildLog.textContent = artifact.buildLog || "moon build finished without extra logs.";
+  latestWasmBase64 = artifact.wasmBase64 || "";
+  selectedWorkbench = latestWasmBase64 ? "report" : "advanced";
+  syncWorkbenchTabs();
+  showInspector(true);
+  runButton.disabled = !latestWasmBase64;
+  runBadge.textContent = latestWasmBase64 ? "wasm: ready" : "wasm: idle";
 }
 
 function chooseBrowserChunkSizes(sizeBytes) {
@@ -652,6 +719,162 @@ async function requestBrowserFastqArtifact(prompt, analysis = null) {
   return payload;
 }
 
+function extractJsonPayload(text) {
+  const fenced = String(text || "").match(/```json\s*([\s\S]*?)```/i);
+  if (fenced) return fenced[1];
+  const objectMatch = String(text || "").match(/\{[\s\S]*\}/);
+  return objectMatch ? objectMatch[0] : text;
+}
+
+function browserTaskKernelProtocol(mode) {
+  if (mode === "fastq-agent") {
+    return {
+      protocolName: "moonap.fastq.streaming.v1",
+      inputMode: "streaming-bytes",
+      stateType: "FastqStreamingState",
+      initFn: "init_state",
+      ingestFn: "ingest_chunk",
+      finalizeFn: "finalize_report",
+    };
+  }
+  if (mode === "game-agent") {
+    return {
+      protocolName: "moonap.browser.interactive.v1",
+      inputMode: "interactive",
+      stateType: "GameRuntimeState",
+      initFn: "init_state",
+      ingestFn: "ingest_event",
+      finalizeFn: "finalize_frame",
+    };
+  }
+  return {
+    protocolName: "moonap.workflow.whole-file.v1",
+    inputMode: "whole-file-text",
+    stateType: "WorkflowTaskState",
+    initFn: "init_state",
+    ingestFn: "ingest_input",
+    finalizeFn: "finalize_result",
+  };
+}
+
+function buildBrowserRemoteSystemPrompt(mode) {
+  const protocol = browserTaskKernelProtocol(mode);
+  return [
+    "You are MoonAP, an expert MoonBit code generator.",
+    "Return strict JSON only.",
+    "Required keys: title, summary, moonbitCode, sourceFiles, projectManifest, skills, verificationGate, taskKernelProtocol.",
+    "sourceFiles must be an array of { path, content } objects.",
+    "cmd/main/main.mbt must exist in sourceFiles.",
+    "Prefer a single-package project rooted at cmd/main whenever possible.",
+    "If you create extra package directories such as lib or runtime, each directory with .mbt files must be a valid MoonBit package and imports must match those directory names.",
+    "Do not reference packages like @lib unless matching source files exist in that package directory.",
+    "Use simple MoonBit 0.9-compatible syntax.",
+    "Avoid StringView replace chains like raw.trim().replace(...).",
+    `Protocol: ${protocol.protocolName}`,
+    `Lifecycle: ${protocol.initFn} -> ${protocol.ingestFn} -> ${protocol.finalizeFn}`,
+  ].join("\n");
+}
+
+async function browserCallRemoteModel({ messages, responseFormat = null }) {
+  const llmConfig = getLlmConfig();
+  const baseUrl = String(llmConfig.baseUrl || "").trim().replace(/\/?$/, "/");
+  const response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${llmConfig.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: llmConfig.model,
+      temperature: 0.2,
+      messages,
+      ...(responseFormat ? { response_format: responseFormat } : {}),
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Browser-side remote request failed: ${response.status} ${await response.text()}`);
+  }
+
+  const payload = await response.json();
+  const content = payload?.choices?.[0]?.message?.content;
+  if (typeof content === "string" && content.trim()) {
+    return content;
+  }
+  if (Array.isArray(content)) {
+    return content.map((item) => item?.text || "").join("\n").trim();
+  }
+  throw new Error("Browser-side remote model returned an empty response.");
+}
+
+async function requestBrowserRemoteArtifact(prompt) {
+  const content = await browserCallRemoteModel({
+    responseFormat: { type: "json_object" },
+    messages: [
+      { role: "system", content: buildBrowserRemoteSystemPrompt(selectedMode) },
+      ...history.map((item) => ({ role: item.role, content: item.content })),
+      { role: "user", content: prompt },
+    ],
+  });
+
+  const parsed = JSON.parse(extractJsonPayload(content));
+  const compileResponse = await fetch("/api/artifacts/compile", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      prompt,
+      selectedMode,
+      fileInfo: currentFileInfo,
+      analysis: latestBrowserAnalysis,
+      artifact: parsed,
+    }),
+  });
+  const payload = await compileResponse.json();
+  if (!compileResponse.ok || !payload.ok) {
+    throw new Error(payload.error || "Browser-side remote artifact compile failed.");
+  }
+
+  return {
+    mode: "analysis",
+    experienceMode: `${selectedMode}-browser-remote`,
+    assistant: {
+      role: "assistant",
+      content: `MoonAP used your browser-connected LLM to generate a MoonBit artifact for ${selectedMode}.\n\n${summarizeArtifact(payload.artifact)}`,
+    },
+    artifact: {
+      ...payload.artifact,
+      adapter: payload.artifact?.adapter || "browser-remote-openai-compatible",
+    },
+    fileInfo: currentFileInfo,
+    analysis: latestBrowserAnalysis,
+  };
+}
+
+async function requestBrowserRemoteChat(prompt) {
+  const content = await browserCallRemoteModel({
+    messages: [
+      {
+        role: "system",
+        content: "You are MoonAP, a concise and practical assistant. Help in a chat style and guide users toward local-first analysis when files are involved.",
+      },
+      ...history.map((item) => ({ role: item.role, content: item.content })),
+      { role: "user", content: prompt },
+    ],
+  });
+
+  return {
+    mode: "chat",
+    experienceMode: "browser-remote-chat",
+    assistant: {
+      role: "assistant",
+      content,
+    },
+    artifact: null,
+    fileInfo: currentFileInfo,
+    analysis: null,
+  };
+}
+
 async function buildWasmFromBrowserAnalysis() {
   if (!currentBrowserFile || !latestBrowserAnalysis) {
     throw new Error("Run browser-local FastQ analysis first.");
@@ -663,22 +886,9 @@ async function buildWasmFromBrowserAnalysis() {
   );
 
   addMessage("assistant", payload.assistant.content);
-  artifactTitle.textContent = payload.artifact.title;
-  artifactSummary.textContent = payload.artifact.summary;
-  artifactWarning.textContent = payload.artifact.warning || "";
-  codeOutput.textContent = payload.artifact.moonbitCode;
-  renderSourceFiles(payload.artifact.sourceFiles || []);
-  renderVerificationGate(payload.artifact.verificationGate || []);
-  renderProjectManifest(payload.artifact.projectManifest || null);
-  renderTaskKernelProtocol(payload.artifact.taskKernelProtocol || null);
-  renderBenchmarkProfile(payload.artifact.benchmarkProfile || null);
-  renderBenchmarkReport(payload.analysis?.benchmarkReport || latestBrowserAnalysis.benchmarkReport || "");
-  renderSkills(payload.artifact.skills || []);
-  buildLog.textContent = payload.artifact.buildLog || "moon build finished without extra logs.";
-  latestWasmBase64 = payload.artifact.wasmBase64 || "";
-  showInspector(true);
-  runButton.disabled = !latestWasmBase64;
-  runBadge.textContent = latestWasmBase64 ? "wasm: ready" : "wasm: idle";
+  populateArtifactPanel(payload.artifact, {
+    benchmarkReport: payload.analysis?.benchmarkReport || latestBrowserAnalysis.benchmarkReport || "",
+  });
   modeBadge.textContent = "mode: browser-analysis-wasm";
   experienceBadge.textContent = "workflow: browser-local-fastq -> moonbit-wasm";
   updateFastqActionState("artifact-ready");
@@ -695,6 +905,20 @@ async function synthesizeFromBrowserAnalysis(prompt) {
 
   if ((selectedMode === "moonbit-task" || selectedMode === "game-agent") && !hasRemoteConfig()) {
     throw new Error("This mode needs a configured cloud LLM API. Open the Skill Library for built-in skills, or add your API settings on the left.");
+  }
+
+  if (hasRemoteConfig()) {
+    try {
+      if (selectedMode === "moonbit-task" || selectedMode === "game-agent") {
+        return await requestBrowserRemoteArtifact(prompt);
+      }
+      if (selectedMode === "chat" && /moonbit|wasm|webassembly|generate|workflow|code/i.test(prompt)) {
+        return await requestBrowserRemoteArtifact(prompt);
+      }
+      return await requestBrowserRemoteChat(prompt);
+    } catch (error) {
+      addMessage("assistant", `Browser-side remote LLM failed, so MoonAP is retrying through the server path.\n\n${error.message}`);
+    }
   }
 
   const response = await fetch("/api/chat", {
@@ -870,22 +1094,7 @@ async function sendPrompt(prompt) {
 
   adapterBadge.textContent = `adapter: ${payload.artifact.adapter || "local-artifact"}`;
   analysisOutput.textContent = payload.analysis?.summary || "No local analysis summary.";
-  artifactTitle.textContent = payload.artifact.title;
-  artifactSummary.textContent = payload.artifact.summary;
-  artifactWarning.textContent = payload.artifact.warning || "";
-  codeOutput.textContent = payload.artifact.moonbitCode;
-  renderSourceFiles(payload.artifact.sourceFiles || []);
-  renderVerificationGate(payload.artifact.verificationGate || []);
-  renderProjectManifest(payload.artifact.projectManifest || null);
-  renderTaskKernelProtocol(payload.artifact.taskKernelProtocol || null);
-  renderBenchmarkProfile(payload.artifact.benchmarkProfile || null);
-  renderBenchmarkReport(payload.analysis?.benchmarkReport || "");
-  renderSkills(payload.artifact.skills || []);
-  buildLog.textContent = payload.artifact.buildLog || "moon build finished without extra logs.";
-  latestWasmBase64 = payload.artifact.wasmBase64 || "";
-  showInspector(true);
-  runButton.disabled = !latestWasmBase64;
-  runBadge.textContent = latestWasmBase64 ? "wasm: ready" : "wasm: idle";
+  populateArtifactPanel(payload.artifact, payload.analysis);
   updatePipeline(latestWasmBase64 ? "build" : "artifact");
 }
 

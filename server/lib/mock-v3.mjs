@@ -45,7 +45,7 @@ function gameDemoProgram() {
 }
 
 function workflowProgram(prompt) {
-  return `fn normalize_request(raw : String) -> String {\n  raw.trim().replace("\\n", " ")\n}\n\nfn session_label(request : String) -> String {\n  "moonap-session:" + request.length().to_string()\n}\n\nfn main {\n  let request = normalize_request("${safePrompt(prompt)}")\n  let session = session_label(request)\n  println("MoonAP MoonBit task")\n  println("request = " + request)\n  println("session = " + session)\n  println("next = compile to WebAssembly and run in the browser")\n}`;
+  return `fn normalize_request(raw : String) -> String {\n  raw.trim().to_string()\n}\n\nfn session_label(request : String) -> String {\n  "moonap-session:" + request.length().to_string()\n}\n\nfn main {\n  let request = normalize_request("${safePrompt(prompt)}")\n  let session = session_label(request)\n  println("MoonAP MoonBit task")\n  println("request = " + request)\n  println("session = " + session)\n  println("next = compile to WebAssembly and run in the browser")\n}`;
 }
 
 function fastqSourceFiles(analysis = null, fileInfo = null) {
@@ -103,7 +103,7 @@ function workflowSourceFiles(prompt) {
     },
     {
       path: "cmd/main/agent_spec.mbt",
-      content: `fn normalize_request(raw : String) -> String {\n  raw.trim().replace("\\n", " ")\n}`,
+      content: `fn normalize_request(raw : String) -> String {\n  raw.trim().to_string()\n}`,
     },
     {
       path: "cmd/main/session_context.mbt",

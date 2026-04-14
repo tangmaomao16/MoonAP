@@ -4,6 +4,8 @@ import { generateMockChatReply, generateMockMoonBit } from "./mock-v3.mjs";
 import { generateMoonBitProgram, generateTextReply } from "./openai-compatible-v2.mjs";
 import { getTaskKernelProtocol } from "./task-kernel-protocol.mjs";
 
+const NO_LLM_MARKER = "[No LLM connecting now!]";
+
 function normalizeMode(mode) {
   const value = String(mode || "").trim().toLowerCase();
   if (["chat", "moonbit-task", "fastq-agent", "game-agent"].includes(value)) {
@@ -279,6 +281,20 @@ function buildMissingFileReply(mode) {
   return "Please attach a local file path first so MoonAP can inspect it and switch into the MoonBit -> Wasm workflow for this task.";
 }
 
+function withNoLlmMarker(text) {
+  const content = String(text || "").trim();
+  if (!content) return NO_LLM_MARKER;
+  if (content.includes(NO_LLM_MARKER)) return content;
+  return `${content}\n${NO_LLM_MARKER}`;
+}
+
+function withFallbackWarning(text, warning) {
+  const content = String(text || "").trim();
+  const detail = String(warning || "").trim();
+  if (!detail) return content;
+  return `${content}\n\nFallback detail: ${detail}`;
+}
+
 export async function generateMoonAPResponse({ prompt, history = [], filePath = "", llmConfig = {}, selectedMode = "chat" }) {
   const resolvedConfig = resolveModelConfig(llmConfig);
   const mode = normalizeMode(selectedMode);
@@ -299,7 +315,7 @@ export async function generateMoonAPResponse({ prompt, history = [], filePath = 
     return {
       mode: "chat",
       experienceMode: mode,
-      assistant: { role: "assistant", content: buildMissingFileReply(mode) },
+      assistant: { role: "assistant", content: withNoLlmMarker(buildMissingFileReply(mode)) },
       artifact: null,
       fileInfo,
       analysis: null,
@@ -307,9 +323,21 @@ export async function generateMoonAPResponse({ prompt, history = [], filePath = 
   }
 
   if (!artifactMode) {
-    const reply = useRemoteModel(resolvedConfig)
-      ? await generateTextReply(buildContextPrompt(prompt, fileInfo, null, mode), history, resolvedConfig)
-      : generateMockChatReply(prompt, { fileInfo, selectedMode: mode });
+    let reply;
+    if (useRemoteModel(resolvedConfig)) {
+      try {
+        reply = await generateTextReply(buildContextPrompt(prompt, fileInfo, null, mode), history, resolvedConfig);
+      } catch (error) {
+        reply = withNoLlmMarker(
+          withFallbackWarning(
+            generateMockChatReply(prompt, { fileInfo, selectedMode: mode }),
+            `Remote chat failed, so MoonAP switched to local fallback: ${error instanceof Error ? error.message : String(error)}`,
+          ),
+        );
+      }
+    } else {
+      reply = withNoLlmMarker(generateMockChatReply(prompt, { fileInfo, selectedMode: mode }));
+    }
 
     return {
       mode: "chat",
@@ -352,7 +380,15 @@ export async function generateMoonAPResponse({ prompt, history = [], filePath = 
     experienceMode: mode,
     assistant: {
       role: "assistant",
-      content: generateMockChatReply(prompt, { fileInfo, analysis, selectedMode: mode, artifact }),
+      content:
+        artifact?.warning && artifact.adapter !== "openai-compatible"
+          ? withNoLlmMarker(
+              withFallbackWarning(
+                generateMockChatReply(prompt, { fileInfo, analysis, selectedMode: mode, artifact }),
+                artifact.warning,
+              ),
+            )
+          : generateMockChatReply(prompt, { fileInfo, analysis, selectedMode: mode, artifact }),
     },
     artifact,
     fileInfo,

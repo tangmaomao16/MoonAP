@@ -10,6 +10,7 @@ import { compileMoonBitToWasm } from "./lib/moonbit-compiler.mjs";
 
 const WEB_ROOT = path.join(ROOT_DIR, "web");
 const moonVersionPromise = detectMoonVersion();
+const NO_LLM_MARKER = "[No LLM connecting now!]";
 
 function detectMoonVersion() {
   return new Promise((resolve) => {
@@ -49,6 +50,36 @@ function sendJson(response, statusCode, payload) {
 function sendText(response, statusCode, text, contentType = "text/plain; charset=utf-8") {
   response.writeHead(statusCode, { "Content-Type": contentType });
   response.end(text);
+}
+
+function withNoLlmMarker(text) {
+  const content = String(text || "").trim();
+  if (!content) return NO_LLM_MARKER;
+  if (content.includes(NO_LLM_MARKER)) return content;
+  return `${content}\n${NO_LLM_MARKER}`;
+}
+
+async function compileArtifactWithFallback({ artifact, prompt, fileInfo, analysis, selectedMode }) {
+  if (!artifact?.moonbitCode && !artifact?.sourceFiles?.length) {
+    return { artifact: null, compiled: null };
+  }
+
+  try {
+    const compiled = await compileMoonBitToWasm(artifact);
+    return { artifact, compiled };
+  } catch (error) {
+    const fallbackArtifact = {
+      ...generateMockMoonBit(prompt, {
+        fileInfo,
+        analysis,
+        selectedMode,
+      }),
+      adapter: "compile-fallback",
+      warning: `Remote MoonBit artifact failed to compile, so MoonAP switched to a safe local fallback: ${error instanceof Error ? error.message : String(error)}`,
+    };
+    const compiled = await compileMoonBitToWasm(fallbackArtifact);
+    return { artifact: fallbackArtifact, compiled };
+  }
 }
 
 async function serveStaticFile(requestPath, response) {
@@ -130,24 +161,38 @@ const server = http.createServer(async (request, response) => {
         llmConfig,
       });
 
-      let compiled = null;
-      if (result.artifact?.moonbitCode || result.artifact?.sourceFiles?.length) {
-        compiled = await compileMoonBitToWasm(result.artifact);
-      }
+      const compiledResult = await compileArtifactWithFallback({
+        artifact: result.artifact,
+        prompt,
+        fileInfo: result.fileInfo,
+        analysis: result.analysis,
+        selectedMode,
+      });
+      const finalArtifact = compiledResult.artifact;
+      const compiled = compiledResult.compiled;
+      const assistantContent =
+        finalArtifact?.adapter === "compile-fallback" ||
+        finalArtifact?.adapter === "mock-fallback" ||
+        finalArtifact?.adapter === "mock"
+          ? withNoLlmMarker(result.assistant.content)
+          : result.assistant.content;
 
       sendJson(response, 200, {
         ok: true,
         mode: result.mode,
         experienceMode: result.experienceMode,
-        assistant: result.assistant,
+        assistant: {
+          ...result.assistant,
+          content: assistantContent,
+        },
         fileInfo: result.fileInfo,
         analysis: result.analysis,
-        artifact: result.artifact
+        artifact: finalArtifact
           ? {
-              ...result.artifact,
+              ...finalArtifact,
               wasmBase64: compiled?.wasmBase64 || "",
               buildLog: compiled?.buildLog || "",
-              warning: result.artifact.warning || "",
+              warning: finalArtifact.warning || "",
             }
           : null,
       });
@@ -252,6 +297,53 @@ const server = http.createServer(async (request, response) => {
           wasmBase64: compiled.wasmBase64,
           buildLog: compiled.buildLog,
         },
+      });
+    } catch (error) {
+      sendJson(response, 500, {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && request.url === "/api/artifacts/compile") {
+    try {
+      const body = await readJsonBody(request);
+      const prompt = String(body.prompt || "").trim() || "Generate a MoonBit workflow.";
+      const selectedMode = String(body.selectedMode || "chat").trim();
+      const fileInfo = body.fileInfo && typeof body.fileInfo === "object" ? body.fileInfo : null;
+      const analysis = body.analysis && typeof body.analysis === "object" ? body.analysis : null;
+      const incomingArtifact = body.artifact && typeof body.artifact === "object" ? body.artifact : null;
+
+      const mergedArtifact = incomingArtifact
+        ? {
+            ...generateMockMoonBit(prompt, { fileInfo, analysis, selectedMode }),
+            ...incomingArtifact,
+            sourceFiles: Array.isArray(incomingArtifact.sourceFiles) && incomingArtifact.sourceFiles.length > 0
+              ? incomingArtifact.sourceFiles
+              : generateMockMoonBit(prompt, { fileInfo, analysis, selectedMode }).sourceFiles,
+          }
+        : generateMockMoonBit(prompt, { fileInfo, analysis, selectedMode });
+
+      const compiledResult = await compileArtifactWithFallback({
+        artifact: mergedArtifact,
+        prompt,
+        fileInfo,
+        analysis,
+        selectedMode,
+      });
+
+      sendJson(response, 200, {
+        ok: true,
+        artifact: compiledResult.artifact
+          ? {
+              ...compiledResult.artifact,
+              wasmBase64: compiledResult.compiled?.wasmBase64 || "",
+              buildLog: compiledResult.compiled?.buildLog || "",
+              warning: compiledResult.artifact.warning || "",
+            }
+          : null,
       });
     } catch (error) {
       sendJson(response, 500, {
