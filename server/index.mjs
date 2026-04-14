@@ -4,7 +4,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { PORT, ROOT_DIR } from "./lib/config.mjs";
 import { generateMoonAPResponse } from "./lib/chat-engine-v3.mjs";
-import { inspectLocalFile } from "./lib/local-file-service.mjs";
+import { analyzeLocalFile, inspectLocalFile } from "./lib/local-file-service.mjs";
 import { compileMoonBitToWasm } from "./lib/moonbit-compiler.mjs";
 
 const WEB_ROOT = path.join(ROOT_DIR, "web");
@@ -171,6 +171,32 @@ const server = http.createServer(async (request, response) => {
 
       const fileInfo = await inspectLocalFile(filePath);
       sendJson(response, 200, { ok: true, fileInfo });
+    } catch (error) {
+      sendJson(response, 500, {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && request.url === "/api/files/analyze") {
+    try {
+      const body = await readJsonBody(request);
+      const filePath = String(body.path || "").trim();
+      const requestedAnalysis = String(body.requestedAnalysis || "auto").trim();
+
+      if (!filePath) {
+        sendJson(response, 400, { ok: false, error: "path is required" });
+        return;
+      }
+
+      const fileInfo = await inspectLocalFile(filePath);
+      const analysis = await analyzeLocalFile({
+        filePath: fileInfo.path,
+        requestedAnalysis,
+      });
+      sendJson(response, 200, { ok: true, fileInfo, analysis });
     } catch (error) {
       sendJson(response, 500, {
         ok: false,

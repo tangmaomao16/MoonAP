@@ -1,4 +1,4 @@
-﻿function contains(text, words) {
+function contains(text, words) {
   return words.some((word) => text.includes(word));
 }
 
@@ -16,7 +16,7 @@ function sumProgram(limit) {
 }
 
 function fastqDemoProgram() {
-  return `fn count_n_bases(sequence : String) -> Int {\n  let mut total = 0\n  for char in sequence {\n    if char == 'N' || char == 'n' {\n      total = total + 1\n    }\n  }\n  total\n}\n\nfn main {\n  let sample = "AATTCCGGNNNNA"\n  let n_count = count_n_bases(sample)\n  println("sample sequence = " + sample)\n  println("N bases = " + n_count.to_string())\n  println("ratio = " + n_count.to_string() + "/" + sample.length().to_string())\n}`;
+  return `struct SequenceStats {\n  total_bases : Int\n  n_bases : Int\n  ratio_label : String\n}\n\nfn count_n_bases(sequence : String) -> Int {\n  let mut total = 0\n  for char in sequence {\n    if char == 'N' || char == 'n' {\n      total = total + 1\n    }\n  }\n  total\n}\n\nfn summarize_sequence(sequence : String) -> SequenceStats {\n  let n_bases = count_n_bases(sequence)\n  {\n    total_bases: sequence.length(),\n    n_bases,\n    ratio_label: n_bases.to_string() + "/" + sequence.length().to_string(),\n  }\n}\n\nfn recommended_chunk_label() -> String {\n  "8 MB"\n}\n\nfn main {\n  let sample = "AATTCCGGNNNNA"\n  let stats = summarize_sequence(sample)\n  println("sample sequence = " + sample)\n  println("total bases = " + stats.total_bases.to_string())\n  println("N bases = " + stats.n_bases.to_string())\n  println("ratio = " + stats.ratio_label)\n  println("recommended chunk = " + recommended_chunk_label())\n}`;
 }
 
 function csvDemoProgram() {
@@ -24,22 +24,26 @@ function csvDemoProgram() {
 }
 
 function gameDemoProgram() {
-  return `struct Player {\n  x : Int\n  score : Int\n}\n\nfn step(player : Player, tick : Int) -> Player {\n  let shift = if tick % 2 == 0 { 1 } else { 2 }\n  { x: player.x + shift, score: player.score + 10 }\n}\n\nfn main {\n  let mut player = { x: 0, score: 0 }\n  let mut tick = 0\n  while tick < 5 {\n    player = step(player, tick)\n    println("tick=" + tick.to_string() + " x=" + player.x.to_string() + " score=" + player.score.to_string())\n    tick = tick + 1\n  }\n  println("MoonAP game core ready for browser-side rendering integration.")\n}`;
+  return `struct Player {\n  x : Int\n  score : Int\n}\n\nfn initial_player() -> Player {\n  { x: 0, score: 0 }\n}\n\nfn step(player : Player, tick : Int) -> Player {\n  let shift = if tick % 2 == 0 { 1 } else { 2 }\n  { x: player.x + shift, score: player.score + 10 }\n}\n\nfn frame_summary(player : Player, tick : Int) -> String {\n  "tick=" + tick.to_string() + " x=" + player.x.to_string() + " score=" + player.score.to_string()\n}\n\nfn main {\n  let mut player = initial_player()\n  let mut tick = 0\n  while tick < 5 {\n    player = step(player, tick)\n    println(frame_summary(player, tick))\n    tick = tick + 1\n  }\n  println("MoonAP game core ready for browser-side rendering integration.")\n}`;
 }
 
 function workflowProgram(prompt) {
-  return `fn main {\n  println("MoonAP MoonBit task")\n  println("request = ${safePrompt(prompt)}")\n  println("next = compile to WebAssembly and run in the browser")\n}`;
+  return `fn normalize_request(raw : String) -> String {\n  raw.trim().replace("\\n", " ")\n}\n\nfn session_label(request : String) -> String {\n  "moonap-session:" + request.length().to_string()\n}\n\nfn main {\n  let request = normalize_request("${safePrompt(prompt)}")\n  let session = session_label(request)\n  println("MoonAP MoonBit task")\n  println("request = " + request)\n  println("session = " + session)\n  println("next = compile to WebAssembly and run in the browser")\n}`;
 }
 
 function fastqSourceFiles() {
   return [
     {
       path: "cmd/main/main.mbt",
-      content: `fn main {\n  let sample = "AATTCCGGNNNNA"\n  let n_count = count_n_bases(sample)\n  println("sample sequence = " + sample)\n  println("N bases = " + n_count.to_string())\n  println("ratio = " + n_count.to_string() + "/" + sample.length().to_string())\n}`,
+      content: `fn main {\n  let sample = "AATTCCGGNNNNA"\n  let stats = summarize_sequence(sample)\n  println("sample sequence = " + sample)\n  println("total bases = " + stats.total_bases.to_string())\n  println("N bases = " + stats.n_bases.to_string())\n  println("ratio = " + stats.ratio_label)\n  println("recommended chunk = " + recommended_chunk_label())\n}`,
     },
     {
       path: "cmd/main/fastq_stats.mbt",
-      content: `fn count_n_bases(sequence : String) -> Int {\n  let mut total = 0\n  for char in sequence {\n    if char == 'N' || char == 'n' {\n      total = total + 1\n    }\n  }\n  total\n}`,
+      content: `struct SequenceStats {\n  total_bases : Int\n  n_bases : Int\n  ratio_label : String\n}\n\nfn count_n_bases(sequence : String) -> Int {\n  let mut total = 0\n  for char in sequence {\n    if char == 'N' || char == 'n' {\n      total = total + 1\n    }\n  }\n  total\n}\n\nfn summarize_sequence(sequence : String) -> SequenceStats {\n  let n_bases = count_n_bases(sequence)\n  {\n    total_bases: sequence.length(),\n    n_bases,\n    ratio_label: n_bases.to_string() + "/" + sequence.length().to_string(),\n  }\n}`,
+    },
+    {
+      path: "cmd/main/fastq_chunking.mbt",
+      content: `fn recommended_chunk_bytes() -> Int {\n  8 * 1024 * 1024\n}\n\nfn recommended_chunk_label() -> String {\n  (recommended_chunk_bytes() / (1024 * 1024)).to_string() + " MB"\n}`,
     },
   ];
 }
@@ -48,11 +52,15 @@ function gameSourceFiles() {
   return [
     {
       path: "cmd/main/main.mbt",
-      content: `fn main {\n  let mut player = { x: 0, score: 0 }\n  let mut tick = 0\n  while tick < 5 {\n    player = step(player, tick)\n    println("tick=" + tick.to_string() + " x=" + player.x.to_string() + " score=" + player.score.to_string())\n    tick = tick + 1\n  }\n  println("MoonAP game core ready for browser-side rendering integration.")\n}`,
+      content: `fn main {\n  let mut player = initial_player()\n  let mut tick = 0\n  while tick < 5 {\n    player = step(player, tick)\n    println(frame_summary(player, tick))\n    tick = tick + 1\n  }\n  println("MoonAP game core ready for browser-side rendering integration.")\n}`,
     },
     {
       path: "cmd/main/game_state.mbt",
-      content: `struct Player {\n  x : Int\n  score : Int\n}\n\nfn step(player : Player, tick : Int) -> Player {\n  let shift = if tick % 2 == 0 { 1 } else { 2 }\n  { x: player.x + shift, score: player.score + 10 }\n}`,
+      content: `struct Player {\n  x : Int\n  score : Int\n}\n\nfn initial_player() -> Player {\n  { x: 0, score: 0 }\n}\n\nfn step(player : Player, tick : Int) -> Player {\n  let shift = if tick % 2 == 0 { 1 } else { 2 }\n  { x: player.x + shift, score: player.score + 10 }\n}`,
+    },
+    {
+      path: "cmd/main/game_loop.mbt",
+      content: `fn frame_summary(player : Player, tick : Int) -> String {\n  "tick=" + tick.to_string() + " x=" + player.x.to_string() + " score=" + player.score.to_string()\n}`,
     },
   ];
 }
@@ -61,11 +69,15 @@ function workflowSourceFiles(prompt) {
   return [
     {
       path: "cmd/main/main.mbt",
-      content: `fn main {\n  let request = normalize_request("${safePrompt(prompt)}")\n  println("MoonAP MoonBit task")\n  println("request = " + request)\n  println("next = compile to WebAssembly and run in the browser")\n}`,
+      content: `fn main {\n  let request = normalize_request("${safePrompt(prompt)}")\n  let session = session_label(request)\n  println("MoonAP MoonBit task")\n  println("request = " + request)\n  println("session = " + session)\n  println("next = compile to WebAssembly and run in the browser")\n}`,
     },
     {
       path: "cmd/main/agent_spec.mbt",
-      content: `fn normalize_request(raw : String) -> String {\n  raw.trim().replace(\"\\n\", \" \")\n}`,
+      content: `fn normalize_request(raw : String) -> String {\n  raw.trim().replace("\\n", " ")\n}`,
+    },
+    {
+      path: "cmd/main/session_context.mbt",
+      content: `fn session_label(request : String) -> String {\n  "moonap-session:" + request.length().to_string()\n}`,
     },
   ];
 }
@@ -98,6 +110,27 @@ function baseVerificationGate() {
   ];
 }
 
+function buildBenchmarkProfile({ scenario, fileInfo, generatedFileCount, chunkSizes, focus, analysis = null }) {
+  return {
+    scenario,
+    currentInput: fileInfo ? `${fileInfo.path} (${fileInfo.sizeBytes} bytes)` : "No local file attached yet",
+    benchmarkTiers: analysis?.benchmarkPlan?.benchmarkTiers || ["0.1 GB", "1 GB", "5 GB"],
+    recommendedChunkSizes: analysis?.benchmarkPlan?.recommendedChunkSizes || chunkSizes,
+    evaluationFocus: analysis?.benchmarkPlan?.evaluationFocus || focus,
+    generatedFileCount,
+    metricsSnapshot: analysis?.metrics
+      ? {
+          readCount: analysis.metrics.readCount || 0,
+          totalBases: analysis.metrics.totalBases || 0,
+          averageReadLength: analysis.metrics.averageReadLength || 0,
+          nRatio: analysis.metrics.nRatio || 0,
+          gcRatio: analysis.metrics.gcRatio || 0,
+        }
+      : null,
+    estimatedChunksAtCurrentSize: analysis?.benchmarkPlan?.estimatedChunksAtCurrentSize || 0,
+  };
+}
+
 function fastqManifest() {
   return buildProjectManifest({
     packageName: "moonap/fastq_n_ratio",
@@ -105,10 +138,9 @@ function fastqManifest() {
     projectFiles: [
       { path: "moon.mod.json", purpose: "module metadata", language: "json", generated: true },
       { path: "moon.pkg", purpose: "package imports and options", language: "moonpkg", generated: true },
-      { path: "cmd/main/main.mbt", purpose: "browser entrypoint", language: "moonbit", generated: true },
-      { path: "src/fastq/parser.mbt", purpose: "streaming FastQ parsing", language: "moonbit", generated: true },
-      { path: "src/fastq/stats.mbt", purpose: "N-base and quality statistics", language: "moonbit", generated: true },
-      { path: "tests/fastq_stats_test.mbt", purpose: "analysis regression tests", language: "moonbit", generated: true },
+      { path: "cmd/main/main.mbt", purpose: "browser entrypoint and reporting", language: "moonbit", generated: true },
+      { path: "cmd/main/fastq_stats.mbt", purpose: "N-base counting and ratio summarization", language: "moonbit", generated: true },
+      { path: "cmd/main/fastq_chunking.mbt", purpose: "chunk sizing guidance for local GB-scale analysis", language: "moonbit", generated: true },
     ],
     skills: [
       { name: "fastq-n-ratio", category: "bioinformatics", summary: "Counts N bases and computes their ratio over all observed bases.", reusable: true },
@@ -134,9 +166,8 @@ function gameManifest() {
       { path: "moon.mod.json", purpose: "module metadata", language: "json", generated: true },
       { path: "moon.pkg", purpose: "package imports and options", language: "moonpkg", generated: true },
       { path: "cmd/main/main.mbt", purpose: "browser game entrypoint", language: "moonbit", generated: true },
-      { path: "src/game/state.mbt", purpose: "gameplay state transitions", language: "moonbit", generated: true },
-      { path: "src/game/loop.mbt", purpose: "browser loop integration contract", language: "moonbit", generated: true },
-      { path: "tests/game_loop_test.mbt", purpose: "gameplay regression tests", language: "moonbit", generated: true },
+      { path: "cmd/main/game_state.mbt", purpose: "gameplay state transitions", language: "moonbit", generated: true },
+      { path: "cmd/main/game_loop.mbt", purpose: "frame summary and loop helpers", language: "moonbit", generated: true },
     ],
     skills: [
       { name: "browser-dodge-loop", category: "gameplay", summary: "Provides a small dodge-loop suitable for browser rendering shells.", reusable: true },
@@ -162,9 +193,8 @@ function workflowManifest() {
       { path: "moon.mod.json", purpose: "module metadata", language: "json", generated: true },
       { path: "moon.pkg", purpose: "package imports and options", language: "moonpkg", generated: true },
       { path: "cmd/main/main.mbt", purpose: "workflow entrypoint", language: "moonbit", generated: true },
-      { path: "src/agent/spec.mbt", purpose: "task spec normalization", language: "moonbit", generated: true },
-      { path: "src/agent/context.mbt", purpose: "json context and session memory", language: "moonbit", generated: true },
-      { path: "tests/workflow_test.mbt", purpose: "workflow regression tests", language: "moonbit", generated: true },
+      { path: "cmd/main/agent_spec.mbt", purpose: "task spec normalization", language: "moonbit", generated: true },
+      { path: "cmd/main/session_context.mbt", purpose: "session label and lightweight context tracking", language: "moonbit", generated: true },
     ],
     skills: [
       { name: "task-spec-normalizer", category: "agent", summary: "Turns natural language requests into typed synthesis tasks.", reusable: true },
@@ -176,18 +206,19 @@ function workflowManifest() {
         name: "future-proof-slot",
         level: "Formal",
         passed: true,
-        detail: "A future MoonBit formal verification step can be inserted here without changing the rest of the pipeline.",
+        detail: "A future MoonBit formal verification step can be inserted here without changing the rest of the synthesis pipeline.",
       },
     ],
   });
 }
 
-function attachSynthesisMetadata(baseArtifact, manifest) {
+function attachSynthesisMetadata(baseArtifact, manifest, benchmarkProfile) {
   return {
     ...baseArtifact,
     projectManifest: manifest,
     skills: manifest.skills,
     verificationGate: manifest.verificationGate,
+    benchmarkProfile,
   };
 }
 
@@ -209,7 +240,7 @@ export function generateMockChatReply(prompt, context = {}) {
       analysis.summary,
       "",
       artifact
-        ? `I also prepared a MoonBit artifact called "${artifact.title}" together with a project manifest, reusable skills, and a verification gate summary.`
+        ? `I also prepared a MoonBit artifact called "${artifact.title}" together with a project manifest, reusable skills, source files, and a verification gate summary.`
         : "If you want, I can next refine the analysis logic or produce a more specialized MoonBit example.",
     ].join("\n");
   }
@@ -243,65 +274,121 @@ export function generateMockMoonBit(prompt, context = {}) {
   const analysis = context.analysis || null;
   const selectedMode = context.selectedMode || "chat";
 
-  if (selectedMode === "game-agent" || contains(normalized, ["game", "小游戏", "canvas", "arcade"])) {
+  if (selectedMode === "game-agent" || contains(normalized, ["game", "С��Ϸ", "canvas", "arcade"])) {
+    const sourceFiles = gameSourceFiles();
     return attachSynthesisMetadata({
       title: "Browser Mini-Game Core",
       summary: "Generated a MoonBit gameplay core that can act as the logic layer for a browser mini-game compiled to WebAssembly.",
       moonbitCode: gameDemoProgram(),
-      sourceFiles: gameSourceFiles(),
-    }, gameManifest());
+      sourceFiles,
+    }, gameManifest(), buildBenchmarkProfile({
+      scenario: "browser mini-game synthesis",
+      fileInfo,
+      generatedFileCount: sourceFiles.length,
+      chunkSizes: ["not applicable"],
+      focus: ["gameplay loop stability", "wasm startup time", "browser-safe runtime surface"],
+      analysis,
+    }));
   }
 
   if (selectedMode === "moonbit-task") {
+    const sourceFiles = workflowSourceFiles(prompt);
     return attachSynthesisMetadata({
       title: "MoonBit Workflow Starter",
       summary: "Generated a MoonBit-first starter program for the requested task so it can continue into the WebAssembly execution flow.",
       moonbitCode: workflowProgram(prompt),
-      sourceFiles: workflowSourceFiles(prompt),
-    }, workflowManifest());
+      sourceFiles,
+    }, workflowManifest(), buildBenchmarkProfile({
+      scenario: "MoonBit workflow synthesis",
+      fileInfo,
+      generatedFileCount: sourceFiles.length,
+      chunkSizes: ["not applicable"],
+      focus: ["project completeness", "reusable skills", "build success", "explainability"],
+      analysis,
+    }));
   }
 
   if (analysis?.analysisType === "fastq-n-stats" || contains(normalized, ["fastq", ".fastq", ".fq", "n base"])) {
+    const sourceFiles = fastqSourceFiles();
     return attachSynthesisMetadata({
       title: "FastQ N Base Analyzer Demo",
       summary: "Generated a MoonBit demo program that shows the core counting logic for N bases.",
       moonbitCode: fastqDemoProgram(),
-      sourceFiles: fastqSourceFiles(),
-    }, fastqManifest());
+      sourceFiles,
+    }, fastqManifest(), buildBenchmarkProfile({
+      scenario: "FastQ local analysis",
+      fileInfo,
+      generatedFileCount: sourceFiles.length,
+      chunkSizes: ["4 MB", "8 MB", "16 MB"],
+      focus: ["memory peak", "chunk throughput", "total runtime", "output correctness"],
+      analysis,
+    }));
   }
 
   if (analysis?.analysisType === "csv-summary" || fileInfo?.detectedType === "csv" || contains(normalized, ["csv"])) {
+    const sourceFiles = workflowSourceFiles(prompt);
     return attachSynthesisMetadata({
       title: "CSV Structure Demo",
       summary: "Generated a MoonBit demo program that illustrates simple CSV header analysis.",
       moonbitCode: csvDemoProgram(),
-      sourceFiles: workflowSourceFiles(prompt),
-    }, workflowManifest());
+      sourceFiles,
+    }, workflowManifest(), buildBenchmarkProfile({
+      scenario: "local structured data analysis",
+      fileInfo,
+      generatedFileCount: sourceFiles.length,
+      chunkSizes: ["4 MB"],
+      focus: ["schema summary accuracy", "build success", "explainability"],
+      analysis,
+    }));
   }
 
   if (contains(normalized, ["hello", "greet"])) {
+    const sourceFiles = workflowSourceFiles("Hello from MoonBit and WebAssembly!");
     return attachSynthesisMetadata({
       title: "Hello MoonBit",
       summary: "Generated a minimal runnable MoonBit program that prints a greeting.",
       moonbitCode: helloProgram("Hello from MoonBit and WebAssembly!"),
-      sourceFiles: workflowSourceFiles("Hello from MoonBit and WebAssembly!"),
-    }, workflowManifest());
+      sourceFiles,
+    }, workflowManifest(), buildBenchmarkProfile({
+      scenario: "MoonBit workflow synthesis",
+      fileInfo,
+      generatedFileCount: sourceFiles.length,
+      chunkSizes: ["not applicable"],
+      focus: ["build success", "starter project completeness"],
+      analysis,
+    }));
   }
 
   if (contains(normalized, ["sum"])) {
     const n = extractLastNumber(normalized, 100);
+    const sourceFiles = workflowSourceFiles(`sum to ${n}`);
     return attachSynthesisMetadata({
       title: "Sum Calculator",
       summary: "Generated a MoonBit program that adds numbers from 1 to the requested upper bound.",
       moonbitCode: sumProgram(n),
-      sourceFiles: workflowSourceFiles(`sum to ${n}`),
-    }, workflowManifest());
+      sourceFiles,
+    }, workflowManifest(), buildBenchmarkProfile({
+      scenario: "MoonBit workflow synthesis",
+      fileInfo,
+      generatedFileCount: sourceFiles.length,
+      chunkSizes: ["not applicable"],
+      focus: ["build success", "starter project completeness"],
+      analysis,
+    }));
   }
 
+  const sourceFiles = workflowSourceFiles(prompt);
   return attachSynthesisMetadata({
     title: "MoonBit Starter",
     summary: "Returned a safe starter program when the local generator did not match a more specific intent.",
     moonbitCode: `fn main {\n  println("MoonAP received: ${safePrompt(prompt)}")\n  println("Tip: provide a file path and ask for local analysis to trigger the Wasm workflow.")\n}`,
-    sourceFiles: workflowSourceFiles(prompt),
-  }, workflowManifest());
+    sourceFiles,
+  }, workflowManifest(), buildBenchmarkProfile({
+    scenario: "MoonBit workflow synthesis",
+    fileInfo,
+    generatedFileCount: sourceFiles.length,
+    chunkSizes: ["not applicable"],
+    focus: ["build success", "starter project completeness"],
+    analysis,
+  }));
 }

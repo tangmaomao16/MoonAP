@@ -1,4 +1,4 @@
-ï»¿import { resolveModelConfig, useRemoteModel } from "./config.mjs";
+import { resolveModelConfig, useRemoteModel } from "./config.mjs";
 import { analyzeLocalFile, inspectLocalFile } from "./local-file-service.mjs";
 import { generateMockChatReply, generateMockMoonBit } from "./mock-v3.mjs";
 import { generateMoonBitProgram, generateTextReply } from "./openai-compatible-v2.mjs";
@@ -15,7 +15,7 @@ function wantsFileAnalysis(prompt, fileInfo) {
   const normalized = prompt.toLowerCase();
   const keywords = [
     "fastq", ".fq", ".fastq", "analy", "count", "ratio", "quality", "csv", "json", "log", "stats", "inspect",
-    "æ–‡ä»¶", "åˆ†æž", "ç»Ÿè®¡", "æ¯”ä¾‹", "è´¨é‡", "ç¢±åŸº",
+    "ÎÄ¼þ", "·ÖÎö", "Í³¼Æ", "±ÈÀý", "ÖÊÁ¿", "¼î»ù",
   ];
   return Boolean(fileInfo) && keywords.some((keyword) => normalized.includes(keyword));
 }
@@ -27,7 +27,7 @@ function wantsFastqAnalysis(prompt, fileInfo) {
     normalized.includes("fastq") ||
     normalized.includes(".fastq") ||
     normalized.includes(".fq") ||
-    normalized.includes("ç¢±åŸº") ||
+    normalized.includes("¼î»ù") ||
     normalized.includes("n base")
   );
 }
@@ -73,11 +73,11 @@ function containsArtifactIntent(normalizedPrompt) {
     "webassembly",
     "wasm",
     "game",
-    "å°æ¸¸æˆ",
+    "Ð¡ÓÎÏ·",
     "generate code",
-    "ç”Ÿæˆä»£ç ",
+    "Éú³É´úÂë",
     "compile",
-    "ç¼–è¯‘",
+    "±àÒë",
   ];
   return keywords.some((keyword) => normalizedPrompt.includes(keyword));
 }
@@ -90,6 +90,17 @@ function buildProjectManifest({ packageName, entrypoint, projectFiles, skills, v
     projectFiles,
     skills,
     verificationGate,
+  };
+}
+
+function buildBenchmarkProfile({ scenario, fileInfo, generatedFileCount, chunkSizes, focus }) {
+  return {
+    scenario,
+    currentInput: fileInfo ? `${fileInfo.path} (${fileInfo.sizeBytes} bytes)` : "No local file attached yet",
+    benchmarkTiers: ["0.1 GB", "1 GB", "5 GB"],
+    recommendedChunkSizes: chunkSizes,
+    evaluationFocus: focus,
+    generatedFileCount,
   };
 }
 
@@ -137,16 +148,15 @@ function synthesisMetadataFor(mode, fileInfo, analysis) {
   const verificationGate = defaultVerificationGate(mode, analysis);
 
   if (mode === "game-agent") {
-    return buildProjectManifest({
+    const projectManifest = buildProjectManifest({
       packageName: "moonap/browser_game",
       entrypoint: "cmd/main/main.mbt",
       projectFiles: [
         { path: "moon.mod.json", purpose: "module metadata", language: "json", generated: true },
         { path: "moon.pkg", purpose: "package imports and options", language: "moonpkg", generated: true },
         { path: "cmd/main/main.mbt", purpose: "browser game entrypoint", language: "moonbit", generated: true },
-        { path: "src/game/state.mbt", purpose: "gameplay state transitions", language: "moonbit", generated: true },
-        { path: "src/game/loop.mbt", purpose: "browser loop integration contract", language: "moonbit", generated: true },
-        { path: "tests/game_loop_test.mbt", purpose: "gameplay regression tests", language: "moonbit", generated: true },
+        { path: "cmd/main/game_state.mbt", purpose: "gameplay state transitions", language: "moonbit", generated: true },
+        { path: "cmd/main/game_loop.mbt", purpose: "frame summary and loop helpers", language: "moonbit", generated: true },
       ],
       skills: [
         { name: "browser-dodge-loop", category: "gameplay", summary: "Provides a small dodge-loop suitable for browser rendering shells.", reusable: true },
@@ -154,19 +164,29 @@ function synthesisMetadataFor(mode, fileInfo, analysis) {
       ],
       verificationGate,
     });
+
+    return {
+      projectManifest,
+      benchmarkProfile: buildBenchmarkProfile({
+        scenario: "browser mini-game synthesis",
+        fileInfo,
+        generatedFileCount: projectManifest.projectFiles.length - 2,
+        chunkSizes: ["not applicable"],
+        focus: ["gameplay loop stability", "wasm startup time", "browser-safe runtime surface"],
+      }),
+    };
   }
 
   if (mode === "fastq-agent" || analysis?.analysisType === "fastq-n-stats" || fileInfo?.detectedType === "fastq") {
-    return buildProjectManifest({
+    const projectManifest = buildProjectManifest({
       packageName: "moonap/fastq_n_ratio",
       entrypoint: "cmd/main/main.mbt",
       projectFiles: [
         { path: "moon.mod.json", purpose: "module metadata", language: "json", generated: true },
         { path: "moon.pkg", purpose: "package imports and options", language: "moonpkg", generated: true },
-        { path: "cmd/main/main.mbt", purpose: "browser entrypoint", language: "moonbit", generated: true },
-        { path: "src/fastq/parser.mbt", purpose: "streaming FastQ parsing", language: "moonbit", generated: true },
-        { path: "src/fastq/stats.mbt", purpose: "N-base and quality statistics", language: "moonbit", generated: true },
-        { path: "tests/fastq_stats_test.mbt", purpose: "analysis regression tests", language: "moonbit", generated: true },
+        { path: "cmd/main/main.mbt", purpose: "browser entrypoint and reporting", language: "moonbit", generated: true },
+        { path: "cmd/main/fastq_stats.mbt", purpose: "N-base counting and ratio summarization", language: "moonbit", generated: true },
+        { path: "cmd/main/fastq_chunking.mbt", purpose: "chunk sizing guidance for local GB-scale analysis", language: "moonbit", generated: true },
       ],
       skills: [
         { name: "fastq-n-ratio", category: "bioinformatics", summary: "Counts N bases and computes their ratio over all observed bases.", reusable: true },
@@ -174,18 +194,28 @@ function synthesisMetadataFor(mode, fileInfo, analysis) {
       ],
       verificationGate,
     });
+
+    return {
+      projectManifest,
+      benchmarkProfile: buildBenchmarkProfile({
+        scenario: "FastQ local analysis",
+        fileInfo,
+        generatedFileCount: projectManifest.projectFiles.length - 2,
+        chunkSizes: ["4 MB", "8 MB", "16 MB"],
+        focus: ["memory peak", "chunk throughput", "total runtime", "output correctness"],
+      }),
+    };
   }
 
-  return buildProjectManifest({
+  const projectManifest = buildProjectManifest({
     packageName: "moonap/workflow_task",
     entrypoint: "cmd/main/main.mbt",
     projectFiles: [
       { path: "moon.mod.json", purpose: "module metadata", language: "json", generated: true },
       { path: "moon.pkg", purpose: "package imports and options", language: "moonpkg", generated: true },
       { path: "cmd/main/main.mbt", purpose: "workflow entrypoint", language: "moonbit", generated: true },
-      { path: "src/agent/spec.mbt", purpose: "task spec normalization", language: "moonbit", generated: true },
-      { path: "src/agent/context.mbt", purpose: "json context and session memory", language: "moonbit", generated: true },
-      { path: "tests/workflow_test.mbt", purpose: "workflow regression tests", language: "moonbit", generated: true },
+      { path: "cmd/main/agent_spec.mbt", purpose: "task spec normalization", language: "moonbit", generated: true },
+      { path: "cmd/main/session_context.mbt", purpose: "session label and lightweight context tracking", language: "moonbit", generated: true },
     ],
     skills: [
       { name: "task-spec-normalizer", category: "agent", summary: "Turns natural language requests into typed synthesis tasks.", reusable: true },
@@ -193,6 +223,17 @@ function synthesisMetadataFor(mode, fileInfo, analysis) {
     ],
     verificationGate,
   });
+
+  return {
+    projectManifest,
+    benchmarkProfile: buildBenchmarkProfile({
+      scenario: "MoonBit workflow synthesis",
+      fileInfo,
+      generatedFileCount: projectManifest.projectFiles.length - 2,
+      chunkSizes: ["not applicable"],
+      focus: ["project completeness", "reusable skills", "build success", "explainability"],
+    }),
+  };
 }
 
 function attachSynthesisMetadata(artifact, mode, fileInfo, analysis) {
@@ -200,12 +241,19 @@ function attachSynthesisMetadata(artifact, mode, fileInfo, analysis) {
     return artifact;
   }
 
-  const projectManifest = artifact.projectManifest || synthesisMetadataFor(mode, fileInfo, analysis);
+  const metadata = artifact.projectManifest
+    ? {
+        projectManifest: artifact.projectManifest,
+        benchmarkProfile: artifact.benchmarkProfile || null,
+      }
+    : synthesisMetadataFor(mode, fileInfo, analysis);
+
   return {
     ...artifact,
-    projectManifest,
-    skills: artifact.skills || projectManifest.skills,
-    verificationGate: artifact.verificationGate || projectManifest.verificationGate,
+    projectManifest: metadata.projectManifest,
+    skills: artifact.skills || metadata.projectManifest.skills,
+    verificationGate: artifact.verificationGate || metadata.projectManifest.verificationGate,
+    benchmarkProfile: artifact.benchmarkProfile || metadata.benchmarkProfile,
   };
 }
 

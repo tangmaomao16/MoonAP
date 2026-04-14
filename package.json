@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node server/index.mjs",
-    "start": "node server/index.mjs"
+    "start": "node server/index.mjs",
+    "benchmark:fastq": "node scripts/run-fastq-benchmarks.mjs"
   }
 }

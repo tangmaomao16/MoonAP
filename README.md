@@ -1,4 +1,4 @@
-﻿# MoonAP
+# MoonAP
 
 MoonAP means MoonBit Agent Playground.
 
@@ -64,11 +64,12 @@ In the current prototype, you can:
 - chat with the assistant in the browser in a ChatGPT-style interface
 - enter your own LLM API settings in the sidebar
 - attach a local file path for inspection
+- inspect or analyze a local file before starting a synthesis chat
 - switch between dedicated task modes
 - let the server generate MoonBit code
 - compile the generated MoonBit code to Wasm
 - run the Wasm result in the browser
-- inspect the generated project manifest, verification gate, reusable skills, and benchmark profile
+- inspect the generated project manifest, source files, verification gate, reusable skills, benchmark profile, and benchmark report
 
 Current workflow modes:
 
@@ -101,6 +102,7 @@ This prints a demo `AgentContext` as formatted JSON. The current MoonBit core mo
 - verification checks
 - generated file tracking
 - synthesis manifests
+- benchmark profiles
 - reusable skills
 - a `ready_for_wasm` gate
 
@@ -114,6 +116,18 @@ Run MoonBit tests:
 cd C:\my_work\MoonBit_Competition\GitHub\MoonAP\moonap
 moon test
 ```
+
+Run the reproducible FastQ benchmark suite:
+
+```powershell
+cd C:\my_work\MoonBit_Competition\GitHub\MoonAP
+npm run benchmark:fastq
+```
+
+This writes the latest benchmark artifacts to:
+
+- `.moonap-artifacts/benchmarks/fastq-benchmark-latest.json`
+- `.moonap-artifacts/benchmarks/fastq-benchmark-latest.md`
 
 ## Optional Remote Model Configuration
 
@@ -143,13 +157,18 @@ Already implemented:
 - custom LLM API configuration in the UI
 - local file inspection API
 - FastQ-oriented local analysis path
+- richer FastQ metrics including GC ratio, average read length, and chunk-ready benchmark planning
 - MoonBit code artifact generation
 - multi-file MoonBit project synthesis protocol
 - multi-file MoonBit -> Wasm compilation pipeline
 - project manifest generation
+- generated source file workbench
 - reusable skill summaries
 - verification gate summaries
-- benchmark readiness panel
+- server-driven benchmark readiness profile
+- benchmark panel with current-size chunk estimates and metric snapshots for FastQ analysis
+- FastQ benchmark report for local competition-style evaluation
+- reproducible FastQ benchmark suite with synthetic datasets and Wasm build validation
 - automatic MoonBit -> Wasm compilation
 - browser-side Wasm execution
 - MoonBit version display in the UI
@@ -168,6 +187,8 @@ MoonAP is not only a chat interface. It is intended to evolve into a MoonBit sof
 
 The strongest showcase path is FastQ analysis with local-first execution and benchmarkable chunk-based processing.
 
+MoonAP now also exposes the synthesized MoonBit source files directly in the UI, so users and judges can inspect the actual multi-file artifact that is being compiled instead of only reading a high-level manifest.
+
 ## Competition-Oriented Next Steps
 
 The most important next steps for this project are:
@@ -182,3 +203,6 @@ The most important next steps for this project are:
 ## License
 
 This repository currently contains the original `moonap/` package scaffold under Apache-2.0, and the surrounding prototype code for MoonAP development.
+
+
+

@@ -44,6 +44,15 @@ pub struct SkillRecord {
 } derive(Eq, Debug, ToJson, FromJson)
 
 ///|
+pub struct BenchmarkProfile {
+  scenario : String
+  benchmark_tiers : Array[String]
+  recommended_chunk_sizes : Array[String]
+  evaluation_focus : Array[String]
+  generated_source_file_count : Int
+} derive(Eq, Debug, ToJson, FromJson)
+
+///|
 pub struct SynthesisManifest {
   package_name : String
   entrypoint : String
@@ -51,6 +60,7 @@ pub struct SynthesisManifest {
   project_files : Array[ProjectFile]
   skills : Array[SkillRecord]
   verification_gate : Array[VerificationCheck]
+  benchmark_profile : BenchmarkProfile?
 } derive(Eq, Debug, ToJson, FromJson)
 
 ///|
@@ -73,6 +83,7 @@ pub struct AgentContext {
   verification_checks : Array[VerificationCheck]
   generated_files : Array[String]
   synthesis_manifest : SynthesisManifest?
+  benchmark_profile : BenchmarkProfile?
 } derive(Eq, Debug, ToJson, FromJson)
 
 ///|
@@ -84,6 +95,7 @@ pub fn new_context(session_id : String) -> AgentContext {
     verification_checks: [],
     generated_files: [],
     synthesis_manifest: None,
+    benchmark_profile: None,
   }
 }
 
@@ -127,6 +139,23 @@ pub fn SkillRecord::new(
 }
 
 ///|
+pub fn BenchmarkProfile::new(
+  scenario : String,
+  benchmark_tiers : Array[String],
+  recommended_chunk_sizes : Array[String],
+  evaluation_focus : Array[String],
+  generated_source_file_count : Int,
+) -> BenchmarkProfile {
+  {
+    scenario,
+    benchmark_tiers,
+    recommended_chunk_sizes,
+    evaluation_focus,
+    generated_source_file_count,
+  }
+}
+
+///|
 pub fn SynthesisManifest::new(
   package_name : String,
   entrypoint : String,
@@ -134,6 +163,7 @@ pub fn SynthesisManifest::new(
   project_files : Array[ProjectFile],
   skills : Array[SkillRecord],
   verification_gate : Array[VerificationCheck],
+  benchmark_profile : BenchmarkProfile?,
 ) -> SynthesisManifest {
   {
     package_name,
@@ -142,6 +172,7 @@ pub fn SynthesisManifest::new(
     project_files,
     skills,
     verification_gate,
+    benchmark_profile,
   }
 }
 
@@ -180,6 +211,7 @@ pub fn AgentContext::push_message(
     verification_checks: self.verification_checks,
     generated_files: self.generated_files,
     synthesis_manifest: self.synthesis_manifest,
+    benchmark_profile: self.benchmark_profile,
   }
 }
 
@@ -192,6 +224,7 @@ pub fn AgentContext::set_task(self : AgentContext, task : TaskSpec) -> AgentCont
     verification_checks: self.verification_checks,
     generated_files: self.generated_files,
     synthesis_manifest: self.synthesis_manifest,
+    benchmark_profile: self.benchmark_profile,
   }
 }
 
@@ -207,6 +240,7 @@ pub fn AgentContext::record_check(
     verification_checks: self.verification_checks + [check],
     generated_files: self.generated_files,
     synthesis_manifest: self.synthesis_manifest,
+    benchmark_profile: self.benchmark_profile,
   }
 }
 
@@ -222,6 +256,7 @@ pub fn AgentContext::record_generated_file(
     verification_checks: self.verification_checks,
     generated_files: self.generated_files + [path],
     synthesis_manifest: self.synthesis_manifest,
+    benchmark_profile: self.benchmark_profile,
   }
 }
 
@@ -237,6 +272,23 @@ pub fn AgentContext::set_manifest(
     verification_checks: self.verification_checks,
     generated_files: self.generated_files,
     synthesis_manifest: Some(manifest),
+    benchmark_profile: self.benchmark_profile,
+  }
+}
+
+///|
+pub fn AgentContext::set_benchmark_profile(
+  self : AgentContext,
+  profile : BenchmarkProfile,
+) -> AgentContext {
+  {
+    session_id: self.session_id,
+    messages: self.messages,
+    current_task: self.current_task,
+    verification_checks: self.verification_checks,
+    generated_files: self.generated_files,
+    synthesis_manifest: self.synthesis_manifest,
+    benchmark_profile: Some(profile),
   }
 }
 
@@ -277,6 +329,7 @@ pub fn AgentContext::summary_lines(self : AgentContext) -> Array[String] {
     failed_line,
     compile_line,
     "skills=" + self.synthesis_manifest.map(manifest => manifest.skills.length()).unwrap_or(0).to_string(),
+    "benchmark=" + self.benchmark_profile.map(profile => profile.scenario).unwrap_or("(none)"),
   ]
 }
 
@@ -345,6 +398,13 @@ pub fn fastq_demo_manifest(task : TaskSpec) -> SynthesisManifest {
       "MoonAP reserved a formal verification slot for future MoonBit upgrades while using engineering checks today.",
     ),
   ]
+  let benchmark_profile = BenchmarkProfile::new(
+    "FastQ local analysis",
+    ["0.1 GB", "1 GB", "5 GB"],
+    ["4 MB", "8 MB", "16 MB"],
+    ["memory peak", "chunk throughput", "total runtime", "output correctness"],
+    3,
+  )
   SynthesisManifest::new(
     "moonap/fastq_n_ratio",
     "cmd/main/main.mbt",
@@ -352,10 +412,9 @@ pub fn fastq_demo_manifest(task : TaskSpec) -> SynthesisManifest {
     [
       ProjectFile::new("moon.mod.json", "module metadata", "json", true),
       ProjectFile::new("moon.pkg", "package imports and options", "moonpkg", true),
-      ProjectFile::new("cmd/main/main.mbt", "browser entrypoint", "moonbit", true),
-      ProjectFile::new("src/fastq/parser.mbt", "chunk-based FastQ parsing", "moonbit", true),
-      ProjectFile::new("src/fastq/stats.mbt", "N-base and quality statistics", "moonbit", true),
-      ProjectFile::new("tests/fastq_stats_test.mbt", "analysis regression tests", "moonbit", true),
+      ProjectFile::new("cmd/main/main.mbt", "browser entrypoint and reporting", "moonbit", true),
+      ProjectFile::new("cmd/main/fastq_stats.mbt", "N-base and GC statistics", "moonbit", true),
+      ProjectFile::new("cmd/main/fastq_chunking.mbt", "chunk sizing guidance for benchmark runs", "moonbit", true),
     ],
     [
       SkillRecord::new(
@@ -367,16 +426,24 @@ pub fn fastq_demo_manifest(task : TaskSpec) -> SynthesisManifest {
       SkillRecord::new(
         "chunk-stream-reader",
         "runtime",
-        "Streams local text data in chunks so large files stay browser-friendly.",
+      "Streams local text data in chunks so large files stay browser-friendly.",
         true,
       ),
     ],
     verification_gate,
+    Some(benchmark_profile),
   )
 }
 
 ///|
 pub fn browser_game_demo_manifest(task : TaskSpec) -> SynthesisManifest {
+  let benchmark_profile = BenchmarkProfile::new(
+    "browser mini-game synthesis",
+    ["prototype", "playable", "competition-demo"],
+    ["not-applicable"],
+    ["gameplay loop stability", "wasm startup time", "browser-safe runtime surface"],
+    3,
+  )
   SynthesisManifest::new(
     "moonap/browser_game",
     "cmd/main/main.mbt",
@@ -385,9 +452,8 @@ pub fn browser_game_demo_manifest(task : TaskSpec) -> SynthesisManifest {
       ProjectFile::new("moon.mod.json", "module metadata", "json", true),
       ProjectFile::new("moon.pkg", "package imports and options", "moonpkg", true),
       ProjectFile::new("cmd/main/main.mbt", "browser game entrypoint", "moonbit", true),
-      ProjectFile::new("src/game/state.mbt", "gameplay state transitions", "moonbit", true),
-      ProjectFile::new("src/game/loop.mbt", "browser tick loop contract", "moonbit", true),
-      ProjectFile::new("tests/game_loop_test.mbt", "gameplay regression tests", "moonbit", true),
+      ProjectFile::new("cmd/main/game_state.mbt", "gameplay state transitions", "moonbit", true),
+      ProjectFile::new("cmd/main/game_loop.mbt", "browser tick loop contract", "moonbit", true),
     ],
     [
       SkillRecord::new(
@@ -423,6 +489,7 @@ pub fn browser_game_demo_manifest(task : TaskSpec) -> SynthesisManifest {
         "MoonAP reserved a future formal verification slot while shipping engineering validation today.",
       ),
     ],
+    Some(benchmark_profile),
   )
 }
 
@@ -433,6 +500,7 @@ pub fn build_demo_context(task : TaskSpec) -> AgentContext {
     BrowserGame => browser_game_demo_manifest(task)
     Utility => fastq_demo_manifest(task)
   }
+  let benchmark_profile = manifest.benchmark_profile.unwrap()
   new_context("demo-session")
   .push_message(
     ChatMessage::new(
@@ -453,5 +521,8 @@ pub fn build_demo_context(task : TaskSpec) -> AgentContext {
   .record_check(manifest.verification_gate[1])
   .record_check(manifest.verification_gate[2])
   .record_generated_file("cmd/main/main.mbt")
+  .record_generated_file(manifest.project_files[3].path)
+  .record_generated_file(manifest.project_files[4].path)
   .set_manifest(manifest)
+  .set_benchmark_profile(benchmark_profile)
 }

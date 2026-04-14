@@ -46,6 +46,68 @@ function formatRatio(numerator, denominator) {
   return `${((numerator / denominator) * 100).toFixed(6)}%`;
 }
 
+function chooseChunkSizes(sizeBytes) {
+  if (sizeBytes >= 5 * 1024 * 1024 * 1024) {
+    return ["16 MB", "8 MB", "4 MB"];
+  }
+  if (sizeBytes >= 1024 * 1024 * 1024) {
+    return ["8 MB", "16 MB", "4 MB"];
+  }
+  return ["4 MB", "8 MB", "16 MB"];
+}
+
+function estimateChunkCount(sizeBytes, chunkBytes) {
+  if (!sizeBytes || !chunkBytes) {
+    return 0;
+  }
+  return Math.ceil(sizeBytes / chunkBytes);
+}
+
+function buildFastqBenchmarkPlan(sizeBytes) {
+  const chunkSizes = chooseChunkSizes(sizeBytes);
+  const primaryChunkLabel = chunkSizes[0];
+  const primaryChunkBytes = Number.parseInt(primaryChunkLabel, 10) * 1024 * 1024;
+
+  return {
+    benchmarkTiers: ["0.1 GB", "1 GB", "5 GB"],
+    recommendedChunkSizes: chunkSizes,
+    primaryChunkLabel,
+    estimatedChunksAtCurrentSize: estimateChunkCount(sizeBytes, primaryChunkBytes),
+    evaluationFocus: ["memory peak", "chunk throughput", "total runtime", "output correctness"],
+  };
+}
+
+function buildFastqBenchmarkReport(filePath, fileSizeBytes, metrics, benchmarkPlan) {
+  const currentGiB = (fileSizeBytes / (1024 * 1024 * 1024)).toFixed(4);
+  return [
+    "MoonAP FastQ Benchmark Report",
+    "============================",
+    `file = ${filePath}`,
+    `size = ${fileSizeBytes} bytes (${currentGiB} GiB)`,
+    "",
+    "current metrics",
+    `- reads processed: ${metrics.readCount}`,
+    `- total bases: ${metrics.totalBases}`,
+    `- N ratio: ${formatRatio(metrics.nBases, metrics.totalBases)}`,
+    `- GC ratio: ${formatRatio(metrics.gcBases, metrics.totalBases)}`,
+    `- average read length: ${metrics.averageReadLength.toFixed(2)}`,
+    `- longest read: ${metrics.longestRead}`,
+    `- shortest read: ${metrics.shortestRead}`,
+    "",
+    "recommended benchmark plan",
+    `- tiers: ${benchmarkPlan.benchmarkTiers.join(" / ")}`,
+    `- primary chunk size: ${benchmarkPlan.primaryChunkLabel}`,
+    `- chunk sweep: ${benchmarkPlan.recommendedChunkSizes.join(" / ")}`,
+    `- estimated chunks at current size: ${benchmarkPlan.estimatedChunksAtCurrentSize}`,
+    `- evaluation focus: ${benchmarkPlan.evaluationFocus.join(", ")}`,
+    "",
+    "competition talking points",
+    "- keep sequencing data local to the browser-side execution flow",
+    "- compare chunk sizes instead of loading the full file at once",
+    "- record memory peak, throughput, runtime, and output correctness side by side",
+  ].join("\n");
+}
+
 function inferDelimiter(sampleLine) {
   if (sampleLine.includes("\t")) {
     return "\t";
@@ -73,6 +135,7 @@ async function countLines(filePath) {
 }
 
 async function analyzeFastqN(filePath) {
+  const stat = await fsp.stat(filePath);
   const stream = fs.createReadStream(filePath, { encoding: "utf8" });
   const rl = readline.createInterface({
     input: stream,
@@ -83,15 +146,28 @@ async function analyzeFastqN(filePath) {
   let readCount = 0;
   let totalBases = 0;
   let nBases = 0;
+  let gcBases = 0;
+  let longestRead = 0;
+  let shortestRead = Number.MAX_SAFE_INTEGER;
 
   try {
     for await (const line of rl) {
       if (lineIndex % 4 === 1) {
         readCount += 1;
-        totalBases += line.length;
+        const readLength = line.length;
+        totalBases += readLength;
+        if (readLength > longestRead) {
+          longestRead = readLength;
+        }
+        if (readLength < shortestRead) {
+          shortestRead = readLength;
+        }
         for (const char of line) {
           if (char === "N" || char === "n") {
             nBases += 1;
+          }
+          if (char === "G" || char === "g" || char === "C" || char === "c") {
+            gcBases += 1;
           }
         }
       }
@@ -101,6 +177,20 @@ async function analyzeFastqN(filePath) {
     rl.close();
   }
 
+  const averageReadLength = readCount ? totalBases / readCount : 0;
+  const benchmarkPlan = buildFastqBenchmarkPlan(stat.size);
+  const metrics = {
+    readCount,
+    totalBases,
+    nBases,
+    gcBases,
+    nRatio: totalBases ? nBases / totalBases : 0,
+    gcRatio: totalBases ? gcBases / totalBases : 0,
+    averageReadLength,
+    longestRead,
+    shortestRead: Number.isFinite(shortestRead) ? shortestRead : 0,
+  };
+
   return {
     analysisType: "fastq-n-stats",
     summary: [
@@ -109,13 +199,13 @@ async function analyzeFastqN(filePath) {
       `Total bases: ${totalBases}`,
       `N bases: ${nBases}`,
       `N ratio: ${formatRatio(nBases, totalBases)}`,
+      `GC ratio: ${formatRatio(gcBases, totalBases)}`,
+      `Average read length: ${averageReadLength.toFixed(2)}`,
+      `Recommended chunk sizes: ${benchmarkPlan.recommendedChunkSizes.join(" / ")}`,
     ].join("\n"),
-    metrics: {
-      readCount,
-      totalBases,
-      nBases,
-      nRatio: totalBases ? nBases / totalBases : 0,
-    },
+    metrics,
+    benchmarkPlan,
+    benchmarkReport: buildFastqBenchmarkReport(filePath, stat.size, metrics, benchmarkPlan),
   };
 }
 

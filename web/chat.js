@@ -3,6 +3,7 @@ const messages = document.getElementById("messages");
 const promptInput = document.getElementById("prompt-input");
 const sendButton = document.getElementById("send-button");
 const inspectFileButton = document.getElementById("inspect-file-button");
+const analyzeFileButton = document.getElementById("analyze-file-button");
 const clearFileButton = document.getElementById("clear-file-button");
 const saveSettingsButton = document.getElementById("save-llm-settings");
 const runButton = document.getElementById("run-button");
@@ -13,6 +14,7 @@ const filePathInput = document.getElementById("file-path-input");
 const fileSummary = document.getElementById("file-summary");
 const analysisOutput = document.getElementById("analysis-output");
 const codeOutput = document.getElementById("code-output");
+const sourceFilesOutput = document.getElementById("source-files-output");
 const programOutput = document.getElementById("program-output");
 const buildLog = document.getElementById("build-log");
 const artifactTitle = document.getElementById("artifact-title");
@@ -21,6 +23,7 @@ const artifactWarning = document.getElementById("artifact-warning");
 const verificationOutput = document.getElementById("verification-output");
 const manifestOutput = document.getElementById("manifest-output");
 const benchmarkOutput = document.getElementById("benchmark-output");
+const benchmarkReportOutput = document.getElementById("benchmark-report-output");
 const skillOutput = document.getElementById("skill-output");
 const modeBadge = document.getElementById("mode-badge");
 const adapterBadge = document.getElementById("adapter-badge");
@@ -188,6 +191,17 @@ function renderProjectManifest(manifest) {
   manifestOutput.textContent = [...header, ...files].join("\n");
 }
 
+function renderSourceFiles(sourceFiles = []) {
+  if (!sourceFiles.length) {
+    sourceFilesOutput.textContent = "No generated source files yet.";
+    return;
+  }
+
+  sourceFilesOutput.textContent = sourceFiles
+    .map((file) => `// ${file.path}\n${file.content}`)
+    .join("\n\n");
+}
+
 function renderSkills(skills = []) {
   if (!skills.length) {
     skillOutput.textContent = "No reusable skills yet.";
@@ -199,39 +213,38 @@ function renderSkills(skills = []) {
     .join("\n\n");
 }
 
-function renderBenchmarkProfile({ mode = "chat", fileInfo = null, analysis = null, manifest = null }) {
-  if (!manifest) {
+function renderBenchmarkProfile(profile = null) {
+  if (!profile) {
     benchmarkOutput.textContent = "No benchmark profile yet.";
     return;
   }
 
-  if (mode === "fastq-agent" || analysis?.analysisType === "fastq-n-stats" || fileInfo?.detectedType === "fastq") {
-    const fileSize = fileInfo ? `${fileInfo.sizeBytes} bytes` : "attach a FASTQ file";
-    benchmarkOutput.textContent = [
-      "primary scenario = FastQ local analysis",
-      `current file size = ${fileSize}`,
-      "benchmark tiers = 0.1 GB / 1 GB / 5 GB",
-      "recommended chunk sizes = 4 MB / 8 MB / 16 MB",
-      "evaluation focus = memory peak, chunk throughput, total runtime, output correctness",
-      `generated project files = ${(manifest.projectFiles || []).length}`,
-    ].join("\n");
-    return;
+  const lines = [
+    `primary scenario = ${profile.scenario}`,
+    `current input = ${profile.currentInput}`,
+    `benchmark tiers = ${(profile.benchmarkTiers || []).join(" / ")}`,
+    `recommended chunk sizes = ${(profile.recommendedChunkSizes || []).join(" / ")}`,
+    `evaluation focus = ${(profile.evaluationFocus || []).join(", ")}`,
+    `generated source files = ${profile.generatedFileCount}`,
+  ];
+
+  if (profile.estimatedChunksAtCurrentSize) {
+    lines.push(`estimated chunks at current size = ${profile.estimatedChunksAtCurrentSize}`);
   }
 
-  if (mode === "game-agent") {
-    benchmarkOutput.textContent = [
-      "primary scenario = browser mini-game synthesis",
-      "evaluation focus = gameplay loop stability, wasm startup time, browser-safe runtime surface",
-      `generated project files = ${(manifest.projectFiles || []).length}`,
-    ].join("\n");
-    return;
+  if (profile.metricsSnapshot) {
+    lines.push(`reads = ${profile.metricsSnapshot.readCount}`);
+    lines.push(`total bases = ${profile.metricsSnapshot.totalBases}`);
+    lines.push(`average read length = ${Number(profile.metricsSnapshot.averageReadLength || 0).toFixed(2)}`);
+    lines.push(`N ratio = ${(Number(profile.metricsSnapshot.nRatio || 0) * 100).toFixed(4)}%`);
+    lines.push(`GC ratio = ${(Number(profile.metricsSnapshot.gcRatio || 0) * 100).toFixed(4)}%`);
   }
 
-  benchmarkOutput.textContent = [
-    "primary scenario = MoonBit workflow synthesis",
-    "evaluation focus = project completeness, reusable skills, build success, explainability",
-    `generated project files = ${(manifest.projectFiles || []).length}`,
-  ].join("\n");
+  benchmarkOutput.textContent = lines.join("\n");
+}
+
+function renderBenchmarkReport(report = "") {
+  benchmarkReportOutput.textContent = report || "No benchmark report yet.";
 }
 
 function updatePipeline(step) {
@@ -278,6 +291,42 @@ async function inspectFile() {
   renderFileInfo(currentFileInfo);
 }
 
+async function analyzeFile() {
+  const path = filePathInput.value.trim();
+  if (!path) throw new Error("Please enter a local file path first.");
+  const requestedAnalysis = selectedMode === "fastq-agent" ? "fastq-n-stats" : "auto";
+  const response = await fetch("/api/files/analyze", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path, requestedAnalysis }),
+  });
+  const payload = await response.json();
+  if (!response.ok || !payload.ok) throw new Error(payload.error || "Unable to analyze file.");
+  currentFileInfo = payload.fileInfo;
+  renderFileInfo(currentFileInfo);
+  analysisOutput.textContent = payload.analysis.summary;
+  renderBenchmarkReport(payload.analysis.benchmarkReport || "");
+  renderBenchmarkProfile(payload.analysis.benchmarkPlan
+    ? {
+        scenario: payload.analysis.analysisType,
+        currentInput: `${payload.fileInfo.path} (${payload.fileInfo.sizeBytes} bytes)`,
+        benchmarkTiers: payload.analysis.benchmarkPlan.benchmarkTiers,
+        recommendedChunkSizes: payload.analysis.benchmarkPlan.recommendedChunkSizes,
+        evaluationFocus: payload.analysis.benchmarkPlan.evaluationFocus,
+        generatedFileCount: 0,
+        metricsSnapshot: {
+          readCount: payload.analysis.metrics.readCount || 0,
+          totalBases: payload.analysis.metrics.totalBases || 0,
+          averageReadLength: payload.analysis.metrics.averageReadLength || 0,
+          nRatio: payload.analysis.metrics.nRatio || 0,
+          gcRatio: payload.analysis.metrics.gcRatio || 0,
+        },
+        estimatedChunksAtCurrentSize: payload.analysis.benchmarkPlan.estimatedChunksAtCurrentSize || 0,
+      }
+    : null);
+  return payload.analysis;
+}
+
 async function runWasm(wasmBase64) {
   const wasmBytes = Uint8Array.from(atob(wasmBase64), (char) => char.charCodeAt(0));
   const collected = [];
@@ -301,9 +350,11 @@ function resetArtifactPanelForChat() {
   artifactSummary.textContent = "Chat mode stays conversational. Switch to MoonBit Builder, FastQ Analyst, or Game Studio to produce executable artifacts.";
   artifactWarning.textContent = "";
   codeOutput.textContent = "// artifact generation is idle in chat mode";
+  renderSourceFiles([]);
   renderVerificationGate([]);
   renderProjectManifest(null);
-  renderBenchmarkProfile({});
+  renderBenchmarkProfile(null);
+  renderBenchmarkReport("");
   renderSkills([]);
   buildLog.textContent = "No MoonBit build was run for this message.";
   programOutput.textContent = "waiting for wasm...";
@@ -348,14 +399,11 @@ async function sendPrompt(prompt) {
   artifactSummary.textContent = payload.artifact.summary;
   artifactWarning.textContent = payload.artifact.warning || "";
   codeOutput.textContent = payload.artifact.moonbitCode;
+  renderSourceFiles(payload.artifact.sourceFiles || []);
   renderVerificationGate(payload.artifact.verificationGate || []);
   renderProjectManifest(payload.artifact.projectManifest || null);
-  renderBenchmarkProfile({
-    mode: payload.experienceMode || selectedMode,
-    fileInfo: currentFileInfo,
-    analysis: payload.analysis || null,
-    manifest: payload.artifact.projectManifest || null,
-  });
+  renderBenchmarkProfile(payload.artifact.benchmarkProfile || null);
+  renderBenchmarkReport(payload.analysis?.benchmarkReport || "");
   renderSkills(payload.artifact.skills || []);
   buildLog.textContent = payload.artifact.buildLog || "moon build finished without extra logs.";
   latestWasmBase64 = payload.artifact.wasmBase64 || "";
@@ -406,10 +454,25 @@ inspectFileButton.addEventListener("click", async () => {
   }
 });
 
+analyzeFileButton.addEventListener("click", async () => {
+  analyzeFileButton.disabled = true;
+  try {
+    const analysis = await analyzeFile();
+    addMessage("assistant", `Analyzed ${currentFileInfo.path} locally.\n\n${analysis.summary}`);
+  } catch (error) {
+    addMessage("assistant", `File analysis failed: ${error.message}`);
+  } finally {
+    analyzeFileButton.disabled = false;
+  }
+});
+
 clearFileButton.addEventListener("click", () => {
   filePathInput.value = "";
   currentFileInfo = null;
   renderFileInfo(null);
+  analysisOutput.textContent = "No local analysis yet.";
+  renderBenchmarkProfile(null);
+  renderBenchmarkReport("");
   addMessage("assistant", "Cleared the current local file context.");
 });
 
