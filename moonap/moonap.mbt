@@ -1,4 +1,3 @@
-///|
 pub enum TaskDomain {
   FastqAnalysis
   BrowserGame
@@ -29,6 +28,32 @@ pub struct VerificationCheck {
 } derive(Eq, Debug, ToJson, FromJson)
 
 ///|
+pub struct ProjectFile {
+  path : String
+  purpose : String
+  language : String
+  generated : Bool
+} derive(Eq, Debug, ToJson, FromJson)
+
+///|
+pub struct SkillRecord {
+  name : String
+  category : String
+  summary : String
+  reusable : Bool
+} derive(Eq, Debug, ToJson, FromJson)
+
+///|
+pub struct SynthesisManifest {
+  package_name : String
+  entrypoint : String
+  runtime_target : String
+  project_files : Array[ProjectFile]
+  skills : Array[SkillRecord]
+  verification_gate : Array[VerificationCheck]
+} derive(Eq, Debug, ToJson, FromJson)
+
+///|
 pub struct TaskSpec {
   title : String
   user_goal : String
@@ -47,6 +72,7 @@ pub struct AgentContext {
   current_task : TaskSpec?
   verification_checks : Array[VerificationCheck]
   generated_files : Array[String]
+  synthesis_manifest : SynthesisManifest?
 } derive(Eq, Debug, ToJson, FromJson)
 
 ///|
@@ -57,6 +83,7 @@ pub fn new_context(session_id : String) -> AgentContext {
     current_task: None,
     verification_checks: [],
     generated_files: [],
+    synthesis_manifest: None,
   }
 }
 
@@ -77,6 +104,45 @@ pub fn VerificationCheck::new(
   detail : String,
 ) -> VerificationCheck {
   { name, level, passed, detail }
+}
+
+///|
+pub fn ProjectFile::new(
+  path : String,
+  purpose : String,
+  language : String,
+  generated : Bool,
+) -> ProjectFile {
+  { path, purpose, language, generated }
+}
+
+///|
+pub fn SkillRecord::new(
+  name : String,
+  category : String,
+  summary : String,
+  reusable : Bool,
+) -> SkillRecord {
+  { name, category, summary, reusable }
+}
+
+///|
+pub fn SynthesisManifest::new(
+  package_name : String,
+  entrypoint : String,
+  runtime_target : String,
+  project_files : Array[ProjectFile],
+  skills : Array[SkillRecord],
+  verification_gate : Array[VerificationCheck],
+) -> SynthesisManifest {
+  {
+    package_name,
+    entrypoint,
+    runtime_target,
+    project_files,
+    skills,
+    verification_gate,
+  }
 }
 
 ///|
@@ -113,6 +179,7 @@ pub fn AgentContext::push_message(
     current_task: self.current_task,
     verification_checks: self.verification_checks,
     generated_files: self.generated_files,
+    synthesis_manifest: self.synthesis_manifest,
   }
 }
 
@@ -124,6 +191,7 @@ pub fn AgentContext::set_task(self : AgentContext, task : TaskSpec) -> AgentCont
     current_task: Some(task),
     verification_checks: self.verification_checks,
     generated_files: self.generated_files,
+    synthesis_manifest: self.synthesis_manifest,
   }
 }
 
@@ -138,6 +206,7 @@ pub fn AgentContext::record_check(
     current_task: self.current_task,
     verification_checks: self.verification_checks + [check],
     generated_files: self.generated_files,
+    synthesis_manifest: self.synthesis_manifest,
   }
 }
 
@@ -152,6 +221,22 @@ pub fn AgentContext::record_generated_file(
     current_task: self.current_task,
     verification_checks: self.verification_checks,
     generated_files: self.generated_files + [path],
+    synthesis_manifest: self.synthesis_manifest,
+  }
+}
+
+///|
+pub fn AgentContext::set_manifest(
+  self : AgentContext,
+  manifest : SynthesisManifest,
+) -> AgentContext {
+  {
+    session_id: self.session_id,
+    messages: self.messages,
+    current_task: self.current_task,
+    verification_checks: self.verification_checks,
+    generated_files: self.generated_files,
+    synthesis_manifest: Some(manifest),
   }
 }
 
@@ -191,6 +276,7 @@ pub fn AgentContext::summary_lines(self : AgentContext) -> Array[String] {
     "messages=" + self.messages.length().to_string(),
     failed_line,
     compile_line,
+    "skills=" + self.synthesis_manifest.map(manifest => manifest.skills.length()).unwrap_or(0).to_string(),
   ]
 }
 
@@ -238,7 +324,115 @@ pub fn browser_game_demo_task() -> TaskSpec {
 }
 
 ///|
+pub fn fastq_demo_manifest(task : TaskSpec) -> SynthesisManifest {
+  let verification_gate = [
+    VerificationCheck::new(
+      "task-selected",
+      JsonSchema,
+      true,
+      "The natural-language request has been normalized into a typed task.",
+    ),
+    VerificationCheck::new(
+      "streaming-plan",
+      Contract,
+      true,
+      "The generated analyzer is expected to process the file chunk by chunk instead of loading it all at once.",
+    ),
+    VerificationCheck::new(
+      "formal-proof-slot",
+      task.verification_level,
+      true,
+      "MoonAP reserved a formal verification slot for future MoonBit upgrades while using engineering checks today.",
+    ),
+  ]
+  SynthesisManifest::new(
+    "moonap/fastq_n_ratio",
+    "cmd/main/main.mbt",
+    "wasm",
+    [
+      ProjectFile::new("moon.mod.json", "module metadata", "json", true),
+      ProjectFile::new("moon.pkg", "package imports and options", "moonpkg", true),
+      ProjectFile::new("cmd/main/main.mbt", "browser entrypoint", "moonbit", true),
+      ProjectFile::new("src/fastq/parser.mbt", "chunk-based FastQ parsing", "moonbit", true),
+      ProjectFile::new("src/fastq/stats.mbt", "N-base and quality statistics", "moonbit", true),
+      ProjectFile::new("tests/fastq_stats_test.mbt", "analysis regression tests", "moonbit", true),
+    ],
+    [
+      SkillRecord::new(
+        "fastq-n-ratio",
+        "bioinformatics",
+        "Counts N bases and computes their ratio over all observed bases.",
+        true,
+      ),
+      SkillRecord::new(
+        "chunk-stream-reader",
+        "runtime",
+        "Streams local text data in chunks so large files stay browser-friendly.",
+        true,
+      ),
+    ],
+    verification_gate,
+  )
+}
+
+///|
+pub fn browser_game_demo_manifest(task : TaskSpec) -> SynthesisManifest {
+  SynthesisManifest::new(
+    "moonap/browser_game",
+    "cmd/main/main.mbt",
+    "wasm",
+    [
+      ProjectFile::new("moon.mod.json", "module metadata", "json", true),
+      ProjectFile::new("moon.pkg", "package imports and options", "moonpkg", true),
+      ProjectFile::new("cmd/main/main.mbt", "browser game entrypoint", "moonbit", true),
+      ProjectFile::new("src/game/state.mbt", "gameplay state transitions", "moonbit", true),
+      ProjectFile::new("src/game/loop.mbt", "browser tick loop contract", "moonbit", true),
+      ProjectFile::new("tests/game_loop_test.mbt", "gameplay regression tests", "moonbit", true),
+    ],
+    [
+      SkillRecord::new(
+        "browser-dodge-loop",
+        "gameplay",
+        "Provides a simple dodge-loop that can be rendered by the browser shell.",
+        true,
+      ),
+      SkillRecord::new(
+        "wasm-ui-bridge",
+        "runtime",
+        "Bridges MoonBit gameplay logic with browser-side presentation code.",
+        true,
+      ),
+    ],
+    [
+      VerificationCheck::new(
+        "task-selected",
+        JsonSchema,
+        true,
+        "The game request has been normalized into a typed MoonBit synthesis task.",
+      ),
+      VerificationCheck::new(
+        "input-boundaries",
+        Contract,
+        true,
+        "The generated game loop stays inside the browser-safe runtime surface.",
+      ),
+      VerificationCheck::new(
+        "formal-proof-slot",
+        task.verification_level,
+        true,
+        "MoonAP reserved a future formal verification slot while shipping engineering validation today.",
+      ),
+    ],
+  )
+}
+
+///|
 pub fn build_demo_context(task : TaskSpec) -> AgentContext {
+  let manifest = match task.domain {
+    FastqAnalysis => fastq_demo_manifest(task)
+    BrowserGame => browser_game_demo_manifest(task)
+    Utility => fastq_demo_manifest(task)
+  }
   new_context("demo-session")
   .push_message(
     ChatMessage::new(
@@ -255,21 +449,9 @@ pub fn build_demo_context(task : TaskSpec) -> AgentContext {
     ),
   )
   .set_task(task)
-  .record_check(
-    VerificationCheck::new(
-      "task-selected",
-      JsonSchema,
-      true,
-      "The natural-language request has been normalized into a typed task.",
-    ),
-  )
-  .record_check(
-    VerificationCheck::new(
-      "verification-policy",
-      task.verification_level,
-      true,
-      "MoonAP attached a verification strategy before code generation.",
-    ),
-  )
+  .record_check(manifest.verification_gate[0])
+  .record_check(manifest.verification_gate[1])
+  .record_check(manifest.verification_gate[2])
   .record_generated_file("cmd/main/main.mbt")
+  .set_manifest(manifest)
 }

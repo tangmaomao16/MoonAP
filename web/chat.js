@@ -18,6 +18,9 @@ const buildLog = document.getElementById("build-log");
 const artifactTitle = document.getElementById("artifact-title");
 const artifactSummary = document.getElementById("artifact-summary");
 const artifactWarning = document.getElementById("artifact-warning");
+const verificationOutput = document.getElementById("verification-output");
+const manifestOutput = document.getElementById("manifest-output");
+const skillOutput = document.getElementById("skill-output");
 const modeBadge = document.getElementById("mode-badge");
 const adapterBadge = document.getElementById("adapter-badge");
 const runBadge = document.getElementById("run-badge");
@@ -151,6 +154,50 @@ function renderFileInfo(fileInfo) {
   ].join("");
 }
 
+function renderVerificationGate(checks = []) {
+  if (!checks.length) {
+    verificationOutput.textContent = "No verification gate yet.";
+    return;
+  }
+
+  verificationOutput.textContent = checks
+    .map((check) => {
+      const status = check.passed ? "PASS" : "FAIL";
+      return `[${status}] ${check.name} (${check.level})\n${check.detail}`;
+    })
+    .join("\n\n");
+}
+
+function renderProjectManifest(manifest) {
+  if (!manifest) {
+    manifestOutput.textContent = "No project manifest yet.";
+    return;
+  }
+
+  const header = [
+    `package = ${manifest.packageName}`,
+    `entrypoint = ${manifest.entrypoint}`,
+    `runtime = ${manifest.runtimeTarget}`,
+    "",
+    "files:",
+  ];
+  const files = (manifest.projectFiles || []).map((file) =>
+    `- ${file.path} | ${file.language} | ${file.purpose}`
+  );
+  manifestOutput.textContent = [...header, ...files].join("\n");
+}
+
+function renderSkills(skills = []) {
+  if (!skills.length) {
+    skillOutput.textContent = "No reusable skills yet.";
+    return;
+  }
+
+  skillOutput.textContent = skills
+    .map((skill) => `- ${skill.name} [${skill.category}]\n  ${skill.summary}`)
+    .join("\n\n");
+}
+
 function updatePipeline(step) {
   [pipelineChat, pipelineMoonbit, pipelineBuild, pipelineRun].forEach((node) => {
     node.classList.remove("active", "complete");
@@ -218,6 +265,9 @@ function resetArtifactPanelForChat() {
   artifactSummary.textContent = "Chat mode stays conversational. Switch to MoonBit Builder, FastQ Analyst, or Game Studio to produce executable artifacts.";
   artifactWarning.textContent = "";
   codeOutput.textContent = "// artifact generation is idle in chat mode";
+  renderVerificationGate([]);
+  renderProjectManifest(null);
+  renderSkills([]);
   buildLog.textContent = "No MoonBit build was run for this message.";
   programOutput.textContent = "waiting for wasm...";
   runButton.disabled = true;
@@ -261,6 +311,9 @@ async function sendPrompt(prompt) {
   artifactSummary.textContent = payload.artifact.summary;
   artifactWarning.textContent = payload.artifact.warning || "";
   codeOutput.textContent = payload.artifact.moonbitCode;
+  renderVerificationGate(payload.artifact.verificationGate || []);
+  renderProjectManifest(payload.artifact.projectManifest || null);
+  renderSkills(payload.artifact.skills || []);
   buildLog.textContent = payload.artifact.buildLog || "moon build finished without extra logs.";
   latestWasmBase64 = payload.artifact.wasmBase64 || "";
   runButton.disabled = !latestWasmBase64;

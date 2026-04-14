@@ -1,4 +1,4 @@
-function contains(text, words) {
+﻿function contains(text, words) {
   return words.some((word) => text.includes(word));
 }
 
@@ -31,6 +31,127 @@ function workflowProgram(prompt) {
   return `fn main {\n  println("MoonAP MoonBit task")\n  println("request = ${safePrompt(prompt)}")\n  println("next = compile to WebAssembly and run in the browser")\n}`;
 }
 
+function buildProjectManifest({ packageName, entrypoint, projectFiles, skills, verificationGate }) {
+  return {
+    packageName,
+    entrypoint,
+    runtimeTarget: "wasm",
+    projectFiles,
+    skills,
+    verificationGate,
+  };
+}
+
+function baseVerificationGate() {
+  return [
+    {
+      name: "task-selected",
+      level: "JsonSchema",
+      passed: true,
+      detail: "MoonAP normalized the natural-language request into a typed synthesis task.",
+    },
+    {
+      name: "engineering-gate",
+      level: "Contract",
+      passed: true,
+      detail: "This version uses engineering validation gates today while reserving a future formal verification slot.",
+    },
+  ];
+}
+
+function fastqManifest() {
+  return buildProjectManifest({
+    packageName: "moonap/fastq_n_ratio",
+    entrypoint: "cmd/main/main.mbt",
+    projectFiles: [
+      { path: "moon.mod.json", purpose: "module metadata", language: "json", generated: true },
+      { path: "moon.pkg", purpose: "package imports and options", language: "moonpkg", generated: true },
+      { path: "cmd/main/main.mbt", purpose: "browser entrypoint", language: "moonbit", generated: true },
+      { path: "src/fastq/parser.mbt", purpose: "streaming FastQ parsing", language: "moonbit", generated: true },
+      { path: "src/fastq/stats.mbt", purpose: "N-base and quality statistics", language: "moonbit", generated: true },
+      { path: "tests/fastq_stats_test.mbt", purpose: "analysis regression tests", language: "moonbit", generated: true },
+    ],
+    skills: [
+      { name: "fastq-n-ratio", category: "bioinformatics", summary: "Counts N bases and computes their ratio over all observed bases.", reusable: true },
+      { name: "chunk-stream-reader", category: "runtime", summary: "Streams local text data in chunks so GB-level files stay browser-friendly.", reusable: true },
+    ],
+    verificationGate: [
+      ...baseVerificationGate(),
+      {
+        name: "streaming-plan",
+        level: "Formal",
+        passed: true,
+        detail: "MoonAP reserved a formal-proof slot for chunk-safe analysis logic once the MoonBit verification stack is more stable.",
+      },
+    ],
+  });
+}
+
+function gameManifest() {
+  return buildProjectManifest({
+    packageName: "moonap/browser_game",
+    entrypoint: "cmd/main/main.mbt",
+    projectFiles: [
+      { path: "moon.mod.json", purpose: "module metadata", language: "json", generated: true },
+      { path: "moon.pkg", purpose: "package imports and options", language: "moonpkg", generated: true },
+      { path: "cmd/main/main.mbt", purpose: "browser game entrypoint", language: "moonbit", generated: true },
+      { path: "src/game/state.mbt", purpose: "gameplay state transitions", language: "moonbit", generated: true },
+      { path: "src/game/loop.mbt", purpose: "browser loop integration contract", language: "moonbit", generated: true },
+      { path: "tests/game_loop_test.mbt", purpose: "gameplay regression tests", language: "moonbit", generated: true },
+    ],
+    skills: [
+      { name: "browser-dodge-loop", category: "gameplay", summary: "Provides a small dodge-loop suitable for browser rendering shells.", reusable: true },
+      { name: "wasm-ui-bridge", category: "runtime", summary: "Connects MoonBit gameplay logic to browser-side drawing code.", reusable: true },
+    ],
+    verificationGate: [
+      ...baseVerificationGate(),
+      {
+        name: "runtime-boundary",
+        level: "Contract",
+        passed: true,
+        detail: "The generated game loop stays inside the browser-safe Wasm execution surface.",
+      },
+    ],
+  });
+}
+
+function workflowManifest() {
+  return buildProjectManifest({
+    packageName: "moonap/workflow_task",
+    entrypoint: "cmd/main/main.mbt",
+    projectFiles: [
+      { path: "moon.mod.json", purpose: "module metadata", language: "json", generated: true },
+      { path: "moon.pkg", purpose: "package imports and options", language: "moonpkg", generated: true },
+      { path: "cmd/main/main.mbt", purpose: "workflow entrypoint", language: "moonbit", generated: true },
+      { path: "src/agent/spec.mbt", purpose: "task spec normalization", language: "moonbit", generated: true },
+      { path: "src/agent/context.mbt", purpose: "json context and session memory", language: "moonbit", generated: true },
+      { path: "tests/workflow_test.mbt", purpose: "workflow regression tests", language: "moonbit", generated: true },
+    ],
+    skills: [
+      { name: "task-spec-normalizer", category: "agent", summary: "Turns natural language requests into typed synthesis tasks.", reusable: true },
+      { name: "context-json-store", category: "agent", summary: "Stores multi-turn state in MoonBit-friendly JSON structures.", reusable: true },
+    ],
+    verificationGate: [
+      ...baseVerificationGate(),
+      {
+        name: "future-proof-slot",
+        level: "Formal",
+        passed: true,
+        detail: "A future MoonBit formal verification step can be inserted here without changing the rest of the pipeline.",
+      },
+    ],
+  });
+}
+
+function attachSynthesisMetadata(baseArtifact, manifest) {
+  return {
+    ...baseArtifact,
+    projectManifest: manifest,
+    skills: manifest.skills,
+    verificationGate: manifest.verificationGate,
+  };
+}
+
 function safePrompt(prompt) {
   return prompt.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
@@ -48,7 +169,9 @@ export function generateMockChatReply(prompt, context = {}) {
       "",
       analysis.summary,
       "",
-      artifact ? `I also prepared a MoonBit artifact called "${artifact.title}" that you can compile to Wasm and run.` : "If you want, I can next refine the analysis logic or produce a more specialized MoonBit example.",
+      artifact
+        ? `I also prepared a MoonBit artifact called "${artifact.title}" together with a project manifest, reusable skills, and a verification gate summary.`
+        : "If you want, I can next refine the analysis logic or produce a more specialized MoonBit example.",
     ].join("\n");
   }
 
@@ -82,57 +205,57 @@ export function generateMockMoonBit(prompt, context = {}) {
   const selectedMode = context.selectedMode || "chat";
 
   if (selectedMode === "game-agent" || contains(normalized, ["game", "小游戏", "canvas", "arcade"])) {
-    return {
+    return attachSynthesisMetadata({
       title: "Browser Mini-Game Core",
       summary: "Generated a MoonBit gameplay core that can act as the logic layer for a browser mini-game compiled to WebAssembly.",
       moonbitCode: gameDemoProgram(),
-    };
+    }, gameManifest());
   }
 
   if (selectedMode === "moonbit-task") {
-    return {
+    return attachSynthesisMetadata({
       title: "MoonBit Workflow Starter",
       summary: "Generated a MoonBit-first starter program for the requested task so it can continue into the WebAssembly execution flow.",
       moonbitCode: workflowProgram(prompt),
-    };
+    }, workflowManifest());
   }
 
   if (analysis?.analysisType === "fastq-n-stats" || contains(normalized, ["fastq", ".fastq", ".fq", "n base"])) {
-    return {
+    return attachSynthesisMetadata({
       title: "FastQ N Base Analyzer Demo",
       summary: "Generated a MoonBit demo program that shows the core counting logic for N bases.",
       moonbitCode: fastqDemoProgram(),
-    };
+    }, fastqManifest());
   }
 
   if (analysis?.analysisType === "csv-summary" || fileInfo?.detectedType === "csv" || contains(normalized, ["csv"])) {
-    return {
+    return attachSynthesisMetadata({
       title: "CSV Structure Demo",
       summary: "Generated a MoonBit demo program that illustrates simple CSV header analysis.",
       moonbitCode: csvDemoProgram(),
-    };
+    }, workflowManifest());
   }
 
   if (contains(normalized, ["hello", "greet"])) {
-    return {
+    return attachSynthesisMetadata({
       title: "Hello MoonBit",
       summary: "Generated a minimal runnable MoonBit program that prints a greeting.",
       moonbitCode: helloProgram("Hello from MoonBit and WebAssembly!"),
-    };
+    }, workflowManifest());
   }
 
   if (contains(normalized, ["sum"])) {
     const n = extractLastNumber(normalized, 100);
-    return {
+    return attachSynthesisMetadata({
       title: "Sum Calculator",
       summary: "Generated a MoonBit program that adds numbers from 1 to the requested upper bound.",
       moonbitCode: sumProgram(n),
-    };
+    }, workflowManifest());
   }
 
-  return {
+  return attachSynthesisMetadata({
     title: "MoonBit Starter",
     summary: "Returned a safe starter program when the local generator did not match a more specific intent.",
     moonbitCode: `fn main {\n  println("MoonAP received: ${safePrompt(prompt)}")\n  println("Tip: provide a file path and ask for local analysis to trigger the Wasm workflow.")\n}`,
-  };
+  }, workflowManifest());
 }

@@ -26,3 +26,12 @@ test "fastq scenario exposes the expected capabilities" {
   assert_true(task.required_capabilities.contains("fastq-streaming"))
   assert_true(task.required_capabilities.contains("wasm-output"))
 }
+
+test "demo context includes a reusable synthesis manifest" {
+  let context = @moonap.build_demo_context(@moonap.fastq_demo_task())
+  let manifest = context.synthesis_manifest.unwrap()
+  assert_eq(manifest.project_files.length(), 6)
+  assert_eq(manifest.skills.length(), 2)
+  assert_true(manifest.project_files[3].path.contains("src/fastq"))
+  assert_true(manifest.verification_gate[2].detail.contains("formal verification slot"))
+}
