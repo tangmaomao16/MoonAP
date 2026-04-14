@@ -66,7 +66,7 @@ In the current prototype, you can:
 - attach a browser-local FastQ file for local-first analysis
 - choose a browser-local FastQ file with the file picker and let MoonBit Wasm analyze it directly in the browser
 - run browser-local FastQ analysis without sending the file contents to the server
-- build a MoonBit Wasm report artifact directly from browser-local FastQ analysis results
+- build a MoonBit Wasm analysis report app directly from browser-local FastQ analysis results
 - verify that the active FastQ analysis kernel is the generated MoonBit Wasm module
 - switch between dedicated task modes
 - let the server generate MoonBit code

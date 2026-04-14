@@ -7,9 +7,7 @@ const buildBrowserWasmButton = document.getElementById("build-browser-wasm-butto
 const clearFileButton = document.getElementById("clear-file-button");
 const saveSettingsButton = document.getElementById("save-llm-settings");
 const runButton = document.getElementById("run-button");
-const seedChatButton = document.getElementById("seed-chat");
 const seedAnalysisButton = document.getElementById("seed-analysis");
-const seedGameButton = document.getElementById("seed-game");
 const browserFileInput = document.getElementById("browser-file-input");
 const browserFileSummary = document.getElementById("browser-file-summary");
 const analysisOutput = document.getElementById("analysis-output");
@@ -34,15 +32,47 @@ const llmBaseUrl = document.getElementById("llm-base-url");
 const llmApiKey = document.getElementById("llm-api-key");
 const llmModel = document.getElementById("llm-model");
 const llmStatus = document.getElementById("llm-status");
+const llmConfigBadge = document.getElementById("llm-config-badge");
+const skillCountBadge = document.getElementById("skill-count-badge");
 const moonVersion = document.getElementById("moon-version");
 const presetButtons = Array.from(document.querySelectorAll(".preset-button"));
 const modePicker = document.getElementById("mode-picker");
 const modeCards = Array.from(document.querySelectorAll(".mode-card"));
 const emptyState = document.getElementById("empty-state");
 const promptCards = Array.from(document.querySelectorAll(".prompt-card"));
+const surfaceTabs = Array.from(document.querySelectorAll("#surface-tabs .tab-button"));
+const surfaceCopy = document.getElementById("surface-copy");
+const workbenchTabs = Array.from(document.querySelectorAll("#workbench-tabs .tab-button"));
+const workbenchCopy = document.getElementById("workbench-copy");
+const workbenchResults = document.getElementById("workbench-results");
+const workbenchReport = document.getElementById("workbench-report");
+const workbenchAdvanced = document.getElementById("workbench-advanced");
+const openSkillLibraryButton = document.getElementById("open-skill-library");
+const openSkillLibrarySecondaryButton = document.getElementById("open-skill-library-secondary");
+const closeSkillLibraryButton = document.getElementById("close-skill-library");
+const skillLibraryDialog = document.getElementById("skill-library-dialog");
+const skillLibraryGrid = document.getElementById("skill-library-grid");
+const openSettingsButton = document.getElementById("open-settings-button");
+const openSettingsButtonSecondary = document.getElementById("open-settings-button-secondary");
+const closeSettingsButton = document.getElementById("close-settings-button");
+const llmSettingsDialog = document.getElementById("llm-settings-dialog");
+const openInspectorButton = document.getElementById("open-inspector-button");
+const inspectorShell = document.getElementById("inspector-shell");
+const quickSkillButton = document.getElementById("quick-skill");
+const quickApiButton = document.getElementById("quick-api");
+const fileContextPanel = document.getElementById("file-context-panel");
+const apiBanner = document.getElementById("api-banner");
+const apiBannerTitle = document.getElementById("api-banner-title");
+const apiBannerBadge = document.getElementById("api-banner-badge");
+const apiBannerCopy = document.getElementById("api-banner-copy");
 const workspaceTitle = document.getElementById("workspace-title");
 const workspaceSubtitle = document.getElementById("workspace-subtitle");
 const composerModeLabel = document.getElementById("composer-mode-label");
+const workflowFocus = document.getElementById("workflow-focus");
+const workflowFocusTitle = document.getElementById("workflow-focus-title");
+const workflowFocusBody = document.getElementById("workflow-focus-body");
+const workflowFocusStep = document.getElementById("workflow-focus-step");
+const fastqActionHint = document.getElementById("fastq-action-hint");
 const pipelineChat = document.getElementById("pipeline-chat");
 const pipelineMoonbit = document.getElementById("pipeline-moonbit");
 const pipelineBuild = document.getElementById("pipeline-build");
@@ -51,7 +81,7 @@ const pipelineRun = document.getElementById("pipeline-run");
 const MODE_DETAILS = {
   chat: {
     title: "Chat with MoonAP",
-    subtitle: "Use MoonAP like a conversational coding agent, then switch into executable MoonBit workflows.",
+    subtitle: "Use MoonAP like a ChatGPT-style workspace for planning, skill routing, and MoonBit generation.",
     composer: "Chat mode",
   },
   "moonbit-task": {
@@ -61,7 +91,7 @@ const MODE_DETAILS = {
   },
   "fastq-agent": {
     title: "Analyze a FastQ file",
-    subtitle: "Inspect local sequencing data, summarize analysis, and generate MoonBit-assisted execution artifacts.",
+    subtitle: "Run local-first FastQ analysis in the browser with a MoonBit Wasm kernel, then generate a reusable report app when needed.",
     composer: "FastQ Analyst mode",
   },
   "game-agent": {
@@ -90,6 +120,170 @@ let currentFileInfo = null;
 let currentBrowserFile = null;
 let latestBrowserAnalysis = null;
 let selectedMode = localStorage.getItem("moonap.selectedMode") || "chat";
+let selectedSurface = selectedMode === "chat" ? "chat" : "task";
+let selectedWorkbench = "results";
+
+const BUILTIN_SKILLS = [
+  {
+    id: "fastq-analyst",
+    name: "FastQ Analyst",
+    mode: "fastq-agent",
+    availability: "Ready now",
+    description: "Analyze a browser-local FastQ file with a MoonBit Wasm kernel and generate a reusable report app.",
+    prompt: "Please analyze this FastQ file, count N bases, compute the ratio, and generate a MoonBit demo program.",
+  },
+  {
+    id: "moonbit-builder",
+    name: "MoonBit Builder",
+    mode: "moonbit-task",
+    availability: "Needs API",
+    description: "Generate MoonBit code for a practical workflow with a cloud model.",
+    prompt: "Generate a MoonBit tool that reads user intent, tracks context as JSON, and prepares a Wasm-ready task pipeline.",
+  },
+  {
+    id: "game-studio",
+    name: "Game Studio",
+    mode: "game-agent",
+    availability: "Needs API",
+    description: "Prototype a browser mini-game in MoonBit with WebAssembly-friendly logic.",
+    prompt: "Generate a browser mini-game in MoonBit with a simple dodge gameplay loop and WebAssembly-friendly game logic.",
+  },
+];
+
+function hasRemoteConfig() {
+  const config = getLlmConfig();
+  return Boolean(config.baseUrl && config.apiKey && config.model);
+}
+
+function syncSurfaceTabs() {
+  surfaceTabs.forEach((button) => {
+    button.classList.toggle("active", button.dataset.surface === selectedSurface);
+  });
+
+  if (selectedSurface === "chat") {
+    surfaceCopy.textContent = "Use Chat to talk with MoonAP, explore skills, and plan the next MoonBit workflow.";
+    return;
+  }
+
+  surfaceCopy.textContent = hasRemoteConfig()
+    ? "Task mode is ready for built-in skills plus cloud-generated MoonBit apps."
+    : "Task mode is ready for built-in skills now. Configure an LLM only when you want live cloud-generated MoonBit apps.";
+}
+
+function syncWorkbenchTabs() {
+  workbenchTabs.forEach((button) => {
+    button.classList.toggle("active", button.dataset.workbench === selectedWorkbench);
+  });
+
+  workbenchResults.classList.toggle("hidden", selectedWorkbench !== "results");
+  workbenchReport.classList.toggle("hidden", selectedWorkbench !== "report");
+  workbenchAdvanced.classList.toggle("hidden", selectedWorkbench !== "advanced");
+
+  if (selectedWorkbench === "results") {
+    workbenchCopy.textContent = "Results shows the main output first: analysis, benchmark readiness, and benchmark report.";
+    return;
+  }
+  if (selectedWorkbench === "report") {
+    workbenchCopy.textContent = "Report App shows the generated MoonBit app and its runtime output.";
+    return;
+  }
+  workbenchCopy.textContent = "Advanced contains source files, verification, protocol, and build details for debugging or judging.";
+}
+
+function showInspector(forceOpen = true) {
+  inspectorShell.classList.toggle("hidden", !forceOpen);
+  openInspectorButton.classList.toggle("active", forceOpen);
+}
+
+function updateFastqActionState(stage = "choose-file") {
+  const isFastqMode = selectedMode === "fastq-agent";
+  workflowFocus.classList.toggle("hidden", !isFastqMode);
+  fileContextPanel.classList.toggle("hidden", !isFastqMode);
+
+  if (!isFastqMode) {
+    analyzeBrowserFileButton.textContent = "Start FastQ Analysis";
+    buildBrowserWasmButton.textContent = "Create Analysis Report";
+    buildBrowserWasmButton.disabled = true;
+    return;
+  }
+
+  workflowFocusTitle.textContent = "FastQ local-first workflow";
+
+  if (stage === "choose-file") {
+    workflowFocusBody.textContent = "Choose a browser-local FastQ file. MoonAP will compile a MoonBit Wasm kernel and run the analysis locally in your browser.";
+    workflowFocusStep.textContent = "step: choose file";
+    fastqActionHint.textContent = "Choose a FastQ file, then let MoonAP compile a MoonBit Wasm kernel and analyze it locally in the browser.";
+    analyzeBrowserFileButton.textContent = "Start FastQ Analysis";
+    buildBrowserWasmButton.textContent = "Create Analysis Report";
+    buildBrowserWasmButton.disabled = true;
+    return;
+  }
+
+  if (stage === "ready-to-analyze") {
+    workflowFocusBody.textContent = "File selected. Start the MoonBit Wasm analysis to produce local metrics, benchmark readiness, and the active analysis kernel.";
+    workflowFocusStep.textContent = "step: run analysis";
+    fastqActionHint.textContent = "MoonAP is ready to analyze this file with a MoonBit Wasm FastQ kernel.";
+    analyzeBrowserFileButton.textContent = "Start FastQ Analysis";
+    buildBrowserWasmButton.textContent = "Create Analysis Report";
+    buildBrowserWasmButton.disabled = true;
+    return;
+  }
+
+  if (stage === "analyzing") {
+    workflowFocusBody.textContent = "MoonAP is compiling a MoonBit Wasm kernel and running browser-local FastQ analysis.";
+    workflowFocusStep.textContent = "step: analyzing";
+    fastqActionHint.textContent = "MoonAP is turning your FastQ request into a MoonBit Wasm analysis kernel.";
+    analyzeBrowserFileButton.textContent = "Analyzing...";
+    buildBrowserWasmButton.textContent = "Create Analysis Report";
+    buildBrowserWasmButton.disabled = true;
+    return;
+  }
+
+  if (stage === "analyzed") {
+    workflowFocusBody.textContent = "Analysis is complete. You can now ask follow-up questions or generate a reusable MoonBit analysis report app for this file.";
+    workflowFocusStep.textContent = "step: review result";
+    fastqActionHint.textContent = "MoonAP finished local FastQ analysis with MoonBit Wasm. You can now generate a reusable analysis report app.";
+    analyzeBrowserFileButton.textContent = "Re-run FastQ Analysis";
+    buildBrowserWasmButton.textContent = "Create Analysis Report";
+    buildBrowserWasmButton.disabled = false;
+    return;
+  }
+
+  if (stage === "artifact-ready") {
+    workflowFocusBody.textContent = "The analysis report app is ready. You can run the Wasm report, inspect generated MoonBit source files, or continue chatting from this context.";
+    workflowFocusStep.textContent = "step: report ready";
+    fastqActionHint.textContent = "MoonAP prepared a reusable MoonBit analysis report app for the analyzed FastQ file.";
+    analyzeBrowserFileButton.textContent = "Re-run FastQ Analysis";
+    buildBrowserWasmButton.textContent = "Refresh Analysis Report";
+    buildBrowserWasmButton.disabled = false;
+  }
+}
+
+function updateApiBanner() {
+  const remoteConfigured = hasRemoteConfig();
+  if (selectedMode === "fastq-agent") {
+    apiBannerTitle.textContent = remoteConfigured ? "FastQ skill is ready" : "FastQ skill works without an API";
+    apiBannerBadge.textContent = remoteConfigured ? "Ready now" : "Ready now";
+    apiBannerBadge.className = "mini-badge ready-badge";
+    apiBannerCopy.textContent = remoteConfigured
+      ? "You can run the built-in FastQ skill immediately. Your configured cloud API is still available for chat and live MoonBit generation."
+      : "The FastQ skill is built in. Choose a local FastQ file and run it directly in the browser with the prepared MoonBit Wasm app.";
+    return;
+  }
+
+  if (remoteConfigured) {
+    apiBannerTitle.textContent = "Cloud chat is connected";
+    apiBannerBadge.textContent = "Configured";
+    apiBannerBadge.className = "mini-badge ready-badge";
+    apiBannerCopy.textContent = "MoonAP can use your configured LLM for real cloud chat and live MoonBit code generation. Built-in skills remain available from the Skill Library.";
+    return;
+  }
+
+  apiBannerTitle.textContent = "Connect your LLM API";
+  apiBannerBadge.textContent = "Needs API";
+  apiBannerBadge.className = "mini-badge cloud-badge";
+  apiBannerCopy.textContent = "Add your GLM 5.1 or OpenRouter credentials on the left for real cloud chat and live MoonBit generation. Without an API key, open the Skill Library to run built-in skills like FastQ analysis.";
+}
 
 function addMessage(role, content) {
   const wrapper = document.createElement("article");
@@ -113,10 +307,34 @@ function getLlmConfig() {
 }
 
 function updateLlmStatus() {
-  const config = getLlmConfig();
-  llmStatus.textContent = config.baseUrl && config.apiKey && config.model
-    ? "Your custom LLM endpoint is configured for this browser."
-    : "Fill these values to use your own LLM endpoint. If left empty, MoonAP uses the local fallback logic.";
+  llmStatus.textContent = hasRemoteConfig()
+    ? "Cloud chat and MoonBit generation are enabled for this browser."
+    : "No cloud API configured yet. Built-in skills still work, and chat stays in local fallback mode.";
+  llmConfigBadge.textContent = hasRemoteConfig() ? "configured" : "needs setup";
+  syncSurfaceTabs();
+  updateApiBanner();
+}
+
+function renderSkillLibrary() {
+  if (skillCountBadge) {
+    skillCountBadge.textContent = `${BUILTIN_SKILLS.length} skills`;
+  }
+  skillLibraryGrid.innerHTML = BUILTIN_SKILLS.map((skill) => `
+    <article class="skill-card">
+      <div class="skill-card-header">
+        <div>
+          <p class="eyebrow">Skill</p>
+          <h3>${skill.name}</h3>
+        </div>
+        <span class="mini-badge ${skill.availability === "Ready now" ? "ready-badge" : "cloud-badge"}">${skill.availability}</span>
+      </div>
+      <p>${skill.description}</p>
+      <div class="skill-meta">
+        <span class="mini-badge">mode: ${skill.mode}</span>
+      </div>
+      <button class="primary-button" type="button" data-skill-id="${skill.id}">Use Skill</button>
+    </article>
+  `).join("");
 }
 
 function saveLlmConfig() {
@@ -139,11 +357,18 @@ function setMode(mode) {
   modeCards.forEach((button) => {
     button.classList.toggle("active", button.dataset.mode === selectedMode);
   });
+  document.querySelectorAll("[data-mode].rail-button, [data-mode].rail-brand").forEach((button) => {
+    button.classList.toggle("active", button.dataset.mode === selectedMode);
+  });
   const details = MODE_DETAILS[selectedMode];
-  workspaceTitle.textContent = details.title;
+  workspaceTitle.textContent = "MoonAP: MoonBit Agent Playground.";
   workspaceSubtitle.textContent = details.subtitle;
   composerModeLabel.textContent = details.composer;
   experienceBadge.textContent = `workflow: ${selectedMode}`;
+  selectedSurface = selectedMode === "chat" ? "chat" : "task";
+  syncSurfaceTabs();
+  updateFastqActionState(currentBrowserFile ? "ready-to-analyze" : "choose-file");
+  updateApiBanner();
 }
 
 function renderBrowserFileInfo(file) {
@@ -417,7 +642,7 @@ async function requestBrowserFastqArtifact(prompt, analysis = null) {
   });
   const payload = await response.json();
   if (!response.ok || !payload.ok) {
-    throw new Error(payload.error || "Unable to build a browser-local FastQ artifact.");
+      throw new Error(payload.error || "Unable to build a browser-local FastQ report app.");
   }
   payload.mode = payload.mode || "analysis";
   payload.experienceMode = payload.experienceMode || "browser-local-fastq";
@@ -451,10 +676,12 @@ async function buildWasmFromBrowserAnalysis() {
   renderSkills(payload.artifact.skills || []);
   buildLog.textContent = payload.artifact.buildLog || "moon build finished without extra logs.";
   latestWasmBase64 = payload.artifact.wasmBase64 || "";
+  showInspector(true);
   runButton.disabled = !latestWasmBase64;
   runBadge.textContent = latestWasmBase64 ? "wasm: ready" : "wasm: idle";
   modeBadge.textContent = "mode: browser-analysis-wasm";
   experienceBadge.textContent = "workflow: browser-local-fastq -> moonbit-wasm";
+  updateFastqActionState("artifact-ready");
   updatePipeline(latestWasmBase64 ? "build" : "artifact");
 }
 
@@ -464,6 +691,10 @@ async function synthesizeFromBrowserAnalysis(prompt) {
       throw new Error("Run Analyze In Browser before sending a FastQ request.");
     }
     return requestBrowserFastqArtifact(prompt, latestBrowserAnalysis);
+  }
+
+  if ((selectedMode === "moonbit-task" || selectedMode === "game-agent") && !hasRemoteConfig()) {
+    throw new Error("This mode needs a configured cloud LLM API. Open the Skill Library for built-in skills, or add your API settings on the left.");
   }
 
   const response = await fetch("/api/chat", {
@@ -599,10 +830,10 @@ async function analyzeBrowserFastqFileWithWasm(file, wasmBase64) {
 
 function resetArtifactPanelForChat() {
   analysisOutput.textContent = "No local analysis was run for this message.";
-  artifactTitle.textContent = "No artifact generated";
-  artifactSummary.textContent = "Chat mode stays conversational. Switch to MoonBit Builder, FastQ Analyst, or Game Studio to produce executable artifacts.";
+  artifactTitle.textContent = "No report app generated";
+  artifactSummary.textContent = "Chat mode stays conversational. Switch to MoonBit Builder, FastQ Analyst, or Game Studio to produce executable MoonBit apps.";
   artifactWarning.textContent = "";
-  codeOutput.textContent = "// artifact generation is idle in chat mode";
+  codeOutput.textContent = "// report app generation is idle in chat mode";
   renderSourceFiles([]);
   renderVerificationGate([]);
   renderProjectManifest(null);
@@ -616,6 +847,9 @@ function resetArtifactPanelForChat() {
   latestWasmBase64 = "";
   runBadge.textContent = "wasm: idle";
   updatePipeline("chat");
+  if (!latestBrowserAnalysis) {
+    showInspector(false);
+  }
 }
 
 async function sendPrompt(prompt) {
@@ -649,6 +883,7 @@ async function sendPrompt(prompt) {
   renderSkills(payload.artifact.skills || []);
   buildLog.textContent = payload.artifact.buildLog || "moon build finished without extra logs.";
   latestWasmBase64 = payload.artifact.wasmBase64 || "";
+  showInspector(true);
   runButton.disabled = !latestWasmBase64;
   runBadge.textContent = latestWasmBase64 ? "wasm: ready" : "wasm: idle";
   updatePipeline(latestWasmBase64 ? "build" : "artifact");
@@ -684,11 +919,12 @@ form.addEventListener("submit", async (event) => {
   }
 });
 
-browserFileInput.addEventListener("change", () => {
+  browserFileInput.addEventListener("change", () => {
   currentBrowserFile = browserFileInput.files?.[0] || null;
   latestBrowserAnalysis = null;
   latestWasmBase64 = "";
   renderBrowserFileInfo(currentBrowserFile);
+  updateFastqActionState(currentBrowserFile ? "ready-to-analyze" : "choose-file");
   analysisOutput.textContent = currentBrowserFile
     ? "Browser-local file selected. Click Analyze In Browser to start MoonBit Wasm analysis."
     : "No local analysis yet.";
@@ -702,6 +938,7 @@ analyzeBrowserFileButton.addEventListener("click", async () => {
 
   analyzeBrowserFileButton.disabled = true;
   modeBadge.textContent = "mode: browser-analyzing";
+  updateFastqActionState("analyzing");
   try {
     analysisOutput.textContent = "MoonAP is compiling a MoonBit Wasm FastQ kernel for browser analysis...";
     const artifactPayload = await requestBrowserFastqArtifact(
@@ -733,13 +970,16 @@ analyzeBrowserFileButton.addEventListener("click", async () => {
     analysisOutput.textContent = result.summary;
     renderBenchmarkProfile(result.benchmarkProfile);
     renderBenchmarkReport(result.benchmarkReport);
+    showInspector(true);
     addMessage("assistant", `MoonBit Wasm analyzed ${currentBrowserFile.name} in the browser.\n\n${result.summary}`);
     modeBadge.textContent = "mode: browser-analysis";
     experienceBadge.textContent = "workflow: browser-local-fastq";
+    updateFastqActionState("analyzed");
     updatePipeline("build");
   } catch (error) {
     addMessage("assistant", `Browser-local analysis failed: ${error.message}`);
     modeBadge.textContent = "mode: error";
+    updateFastqActionState(currentBrowserFile ? "ready-to-analyze" : "choose-file");
   } finally {
     analyzeBrowserFileButton.disabled = false;
   }
@@ -770,9 +1010,11 @@ buildBrowserWasmButton.addEventListener("click", async () => {
         "- MoonBit Wasm remains the active FastQ analysis kernel in this workflow",
       ].join("\n");
     }
+    updateFastqActionState("artifact-ready");
   } catch (error) {
     addMessage("assistant", `Browser-analysis Wasm build failed: ${error.message}`);
     modeBadge.textContent = "mode: error";
+    updateFastqActionState(latestBrowserAnalysis ? "analyzed" : currentBrowserFile ? "ready-to-analyze" : "choose-file");
   } finally {
     buildBrowserWasmButton.disabled = false;
   }
@@ -784,15 +1026,18 @@ clearFileButton.addEventListener("click", () => {
   currentBrowserFile = null;
   latestBrowserAnalysis = null;
   renderBrowserFileInfo(null);
+  updateFastqActionState("choose-file");
   analysisOutput.textContent = "No local analysis yet.";
   renderTaskKernelProtocol(null);
   renderBenchmarkProfile(null);
   renderBenchmarkReport("");
+  showInspector(false);
   addMessage("assistant", "Cleared the current local file context.");
 });
 
 saveSettingsButton.addEventListener("click", () => {
   saveLlmConfig();
+  llmSettingsDialog.close();
   addMessage("assistant", "Saved the current LLM API settings for this browser.");
 });
 
@@ -815,22 +1060,19 @@ runButton.addEventListener("click", async () => {
   }
 });
 
-seedChatButton.addEventListener("click", () => {
-  setMode("chat");
-  promptInput.value = "Help me design a practical MoonBit-first product workflow for local FastQ analysis and browser execution.";
-  promptInput.focus();
-});
-
 seedAnalysisButton.addEventListener("click", () => {
   setMode("fastq-agent");
   promptInput.value = "Please analyze this FastQ file, count N bases, compute the ratio, and generate a MoonBit demo program.";
   promptInput.focus();
 });
 
-seedGameButton.addEventListener("click", () => {
-  setMode("game-agent");
-  promptInput.value = "Generate a browser mini-game in MoonBit with a simple dodge gameplay loop and WebAssembly-friendly logic.";
-  promptInput.focus();
+document.querySelectorAll("[data-mode].rail-button, [data-mode].rail-brand").forEach((button) => {
+  button.addEventListener("click", () => {
+    setMode(button.dataset.mode || "chat");
+    if ((button.dataset.mode || "chat") === "chat") {
+      promptInput.focus();
+    }
+  });
 });
 
 modePicker.addEventListener("click", (event) => {
@@ -858,10 +1100,86 @@ presetButtons.forEach((button) => {
   });
 });
 
+surfaceTabs.forEach((button) => {
+  button.addEventListener("click", () => {
+    selectedSurface = button.dataset.surface || "chat";
+    syncSurfaceTabs();
+    if (selectedSurface === "chat") {
+      setMode("chat");
+      return;
+    }
+    if (selectedMode === "chat") {
+      setMode("fastq-agent");
+    }
+  });
+});
+
+workbenchTabs.forEach((button) => {
+  button.addEventListener("click", () => {
+    selectedWorkbench = button.dataset.workbench || "results";
+    syncWorkbenchTabs();
+  });
+});
+
+openSkillLibraryButton.addEventListener("click", () => {
+  skillLibraryDialog.showModal();
+});
+
+openSkillLibrarySecondaryButton.addEventListener("click", () => {
+  skillLibraryDialog.showModal();
+});
+
+openSettingsButton.addEventListener("click", () => {
+  llmSettingsDialog.showModal();
+});
+
+openSettingsButtonSecondary.addEventListener("click", () => {
+  llmSettingsDialog.showModal();
+});
+
+closeSettingsButton.addEventListener("click", () => {
+  llmSettingsDialog.close();
+});
+
+openInspectorButton.addEventListener("click", () => {
+  showInspector(inspectorShell.classList.contains("hidden"));
+});
+
+if (quickSkillButton) {
+  quickSkillButton.addEventListener("click", () => {
+    skillLibraryDialog.showModal();
+  });
+}
+
+if (quickApiButton) {
+  quickApiButton.addEventListener("click", () => {
+    llmSettingsDialog.showModal();
+  });
+}
+
+closeSkillLibraryButton.addEventListener("click", () => {
+  skillLibraryDialog.close();
+});
+
+skillLibraryGrid.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-skill-id]");
+  if (!button) return;
+  const skill = BUILTIN_SKILLS.find((item) => item.id === button.dataset.skillId);
+  if (!skill) return;
+  setMode(skill.mode);
+  promptInput.value = skill.prompt;
+  promptInput.focus();
+  skillLibraryDialog.close();
+});
+
 loadLlmConfig();
+renderSkillLibrary();
 setMode(selectedMode);
 renderBrowserFileInfo(null);
+updateFastqActionState("choose-file");
+syncWorkbenchTabs();
 resetArtifactPanelForChat();
 syncEmptyState();
 refreshHealth();
-addMessage("assistant", "MoonAP is ready. Talk to it like a ChatGPT-style coding agent, or switch modes to generate MoonBit code, compile WebAssembly, and run results in the browser.");
+updateApiBanner();
+showInspector(false);

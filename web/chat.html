@@ -9,289 +9,334 @@
   <body>
     <div class="app-shell">
       <aside class="sidebar">
-        <div class="brand-card">
-          <div class="brand-mark">M</div>
-          <div class="brand-copy">
-            <p class="eyebrow">MoonBit Agent Playground</p>
-            <h1>MoonAP</h1>
-            <p>Chat like ChatGPT, then switch into MoonBit -> WebAssembly workflows when a task needs execution.</p>
-          </div>
+        <button class="rail-brand" type="button" data-mode="chat" aria-label="MoonAP Home">
+          <span class="brand-mark">M</span>
+        </button>
+        <div class="rail-actions">
+          <button id="open-skill-library" class="rail-button" type="button" aria-label="Skill Library">SKILL</button>
+          <button id="open-settings-button" class="rail-button" type="button" aria-label="LLM API Settings">LLM</button>
+          <button id="open-inspector-button" class="rail-button hidden" type="button" aria-label="Results and Reports">R</button>
         </div>
-
-        <section class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Modes</p>
-              <h2>Pick a workflow</h2>
-            </div>
-            <span id="moon-version" class="mini-badge">MoonBit: checking</span>
-          </div>
-          <div id="mode-picker" class="mode-picker">
-            <button class="mode-card active" type="button" data-mode="chat">
-              <strong>Chat</strong>
-              <span>General planning, Q&amp;A, product thinking</span>
-            </button>
-            <button class="mode-card" type="button" data-mode="moonbit-task">
-              <strong>MoonBit Builder</strong>
-              <span>Generate MoonBit code for a practical task</span>
-            </button>
-            <button class="mode-card" type="button" data-mode="fastq-agent">
-              <strong>FastQ Analyst</strong>
-              <span>Inspect a local FastQ file and produce analysis logic</span>
-            </button>
-            <button class="mode-card" type="button" data-mode="game-agent">
-              <strong>Game Studio</strong>
-              <span>Prototype a browser mini-game with MoonBit and Wasm</span>
-            </button>
-          </div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Model</p>
-              <h2>LLM API</h2>
-            </div>
-          </div>
-          <div class="preset-row">
-            <button class="preset-button" type="button" data-preset="glm51">
-              <strong>GLM 5.1</strong>
-              <span>Official Z.AI OpenAI-compatible template for MoonAP</span>
-            </button>
-            <button class="preset-button" type="button" data-preset="openrouter">
-              <strong>OpenRouter</strong>
-              <span>Use the free router for lightweight testing</span>
-            </button>
-          </div>
-          <label class="field">
-            <span>Base URL</span>
-            <input id="llm-base-url" type="text" placeholder="https://your-endpoint/v1" />
-          </label>
-          <label class="field">
-            <span>API Key</span>
-            <input id="llm-api-key" type="password" placeholder="sk-..." />
-          </label>
-          <label class="field">
-            <span>Model</span>
-            <input id="llm-model" type="text" placeholder="gpt-4.1-mini" />
-          </label>
-          <div class="button-row">
-            <button id="save-llm-settings" class="ghost-button" type="button">Save API Settings</button>
-          </div>
-          <p id="llm-status" class="supporting-text">Fill these values to use your own LLM endpoint. If left empty, MoonAP uses the local fallback logic.</p>
-        </section>
-
-        <section class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">File Context</p>
-              <h2>Attach local data</h2>
-            </div>
-          </div>
-          <label class="field">
-            <span>Browser Local File</span>
-            <input id="browser-file-input" type="file" accept=".fastq,.fq,.txt" />
-          </label>
-          <div class="button-row">
-            <button id="analyze-browser-file-button" class="ghost-button" type="button">Analyze In Browser</button>
-            <button id="build-browser-wasm-button" class="ghost-button" type="button">Build Wasm Report</button>
-            <button id="clear-file-button" class="ghost-button" type="button">Clear</button>
-          </div>
-          <div id="browser-file-summary" class="file-summary">No browser-local file selected.</div>
-        </section>
+        <div class="rail-footer hidden">
+          <span id="moon-version" class="mini-badge">MoonBit: checking</span>
+        </div>
       </aside>
 
       <main class="chat-stage">
-        <header class="chat-header">
+        <div class="hidden">
+          <header class="chat-header compact-header">
+            <div class="workspace-heading">
+              <h1>MoonAP</h1>
+              <p id="workspace-subtitle" class="supporting-text">A MoonBit Agent Playground for cloud chat, built-in skills, and browser-side Wasm apps.</p>
+            </div>
+            <div class="badge-group">
+              <span id="experience-badge" class="status-badge">workflow: chat</span>
+              <span id="mode-badge" class="status-badge">mode: chat</span>
+              <span id="adapter-badge" class="status-badge">adapter: local</span>
+              <span id="run-badge" class="status-badge">wasm: idle</span>
+            </div>
+          </header>
+
+          <section id="api-banner" class="api-banner">
+            <span id="api-banner-badge" class="mini-badge cloud-badge">Needs API</span>
+            <div>
+              <strong id="api-banner-title">Connect your LLM API</strong>
+              <p id="api-banner-copy" class="supporting-text">Use your GLM 5.1 or compatible API for real cloud chat. Without an API key, open the Skill Library and run built-in skills.</p>
+            </div>
+          </section>
+        </div>
+
+        <div id="mode-picker" class="hidden mode-picker">
+            <button class="mode-card active" type="button" data-mode="chat">
+              <strong>Chat</strong>
+              <span>Default workspace</span>
+            </button>
+            <button class="mode-card" type="button" data-mode="fastq-agent">
+              <strong>FastQ Skill</strong>
+              <span>Built in</span>
+            </button>
+            <button class="mode-card" type="button" data-mode="moonbit-task">
+              <strong>MoonBit Builder</strong>
+              <span>Needs API</span>
+            </button>
+            <button class="mode-card" type="button" data-mode="game-agent">
+              <strong>Game Studio</strong>
+              <span>Needs API</span>
+            </button>
+        </div>
+
+        <section id="workflow-focus" class="workflow-focus hidden">
           <div>
-            <p class="eyebrow">Workspace</p>
-            <h2 id="workspace-title">Chat with MoonAP</h2>
-            <p id="workspace-subtitle" class="supporting-text">Use MoonAP like a conversational coding agent, then switch into executable MoonBit workflows.</p>
+            <p class="eyebrow">FastQ Skill</p>
+            <h3 id="workflow-focus-title">Run the built-in FastQ analysis app</h3>
+            <p id="workflow-focus-body" class="supporting-text">Select a local FastQ file, run the prepared MoonBit Wasm skill, then generate a reusable report app if you need one.</p>
           </div>
           <div class="badge-group">
-            <span id="experience-badge" class="status-badge">workflow: chat</span>
-            <span id="mode-badge" class="status-badge">mode: chat</span>
-            <span id="adapter-badge" class="status-badge">adapter: local</span>
-            <span id="run-badge" class="status-badge">wasm: idle</span>
+            <span id="workflow-focus-step" class="status-badge">step: choose file</span>
           </div>
-        </header>
+        </section>
 
-        <section id="empty-state" class="empty-state">
-          <div class="empty-hero">
-            <p class="eyebrow">MoonBit-first agent product</p>
-            <h3>What do you want MoonAP to build or analyze?</h3>
-            <p>Start with a natural-language request, choose a workflow mode, and let MoonAP decide whether it should stay conversational or generate MoonBit -> Wasm artifacts for browser execution.</p>
+        <section id="file-context-panel" class="fastq-panel hidden">
+          <label class="field">
+            <span>FastQ file</span>
+            <input id="browser-file-input" type="file" accept=".fastq,.fq,.txt" />
+          </label>
+          <div id="fastq-action-card" class="action-card">
+            <p class="action-title">FastQ skill</p>
+            <p id="fastq-action-hint" class="supporting-text">Choose a FastQ file, then let MoonAP run the prepared MoonBit Wasm skill locally in your browser.</p>
+            <div class="action-stack inline-actions">
+              <button id="analyze-browser-file-button" class="primary-button" type="button">Start FastQ Analysis</button>
+              <button id="build-browser-wasm-button" class="ghost-button" type="button">Create Analysis Report</button>
+              <button id="clear-file-button" class="ghost-button" type="button">Clear</button>
+            </div>
           </div>
-          <div class="prompt-grid">
-            <button class="prompt-card" type="button" data-prompt="Design a practical MoonBit-first agent workflow for local FastQ quality analysis." data-mode="chat">
-              <strong>Product planning</strong>
-              <span>Ask for architecture, UX, or task design help.</span>
-            </button>
-            <button class="prompt-card" type="button" data-prompt="Generate a MoonBit tool that reads user intent, tracks context as JSON, and prepares a Wasm-ready task pipeline." data-mode="moonbit-task">
-              <strong>MoonBit builder</strong>
-              <span>Create executable MoonBit code from a product request.</span>
-            </button>
-            <button class="prompt-card" type="button" data-prompt="Please analyze this FastQ file, count N bases, compute the ratio, and generate a MoonBit demo program." data-mode="fastq-agent">
-              <strong>FastQ analysis</strong>
-              <span>Inspect a local file and produce analysis logic.</span>
-            </button>
-            <button class="prompt-card" type="button" data-prompt="Generate a browser mini-game in MoonBit with a simple dodge gameplay loop and WebAssembly-friendly game logic." data-mode="game-agent">
-              <strong>Browser mini-game</strong>
-              <span>Prototype gameplay logic for browser execution.</span>
-            </button>
+          <div id="browser-file-summary" class="file-summary">No browser-local file selected.</div>
+        </section>
+
+        <section class="panel compact-panel hidden">
+          <div class="tab-row" id="surface-tabs">
+            <button class="tab-button active" type="button" data-surface="chat">Chat</button>
+            <button class="tab-button" type="button" data-surface="task">Task</button>
+          </div>
+          <p id="surface-copy" class="supporting-text">Use chat for planning, skills, and MoonBit workflows.</p>
+        </section>
+
+        <section id="empty-state" class="empty-state chatgpt-empty">
+          <h2 id="workspace-title">MoonAP: MoonBit Agent Playground.</h2>
+          <p class="empty-subtitle">Configure LLM API and chat, or directly run early SKILLs.</p>
+          <div class="quick-icon-row">
+            <button class="quick-icon-button" type="button" id="quick-api" aria-label="LLM API Settings">LLM</button>
+            <button class="quick-icon-button" type="button" id="quick-skill" aria-label="Skill Library">SKILL</button>
           </div>
         </section>
 
         <section id="messages" class="messages"></section>
 
-        <form id="chat-form" class="composer">
-          <div class="composer-topline">
+        <form id="chat-form" class="composer compact-composer">
+          <div class="composer-topline hidden">
             <span id="composer-mode-label" class="mini-badge">Chat mode</span>
-            <span class="supporting-text">MoonAP can chat, generate MoonBit, compile Wasm, and run results in the browser.</span>
           </div>
-          <textarea id="prompt-input" rows="4" placeholder="Message MoonAP. Example: generate a MoonBit FastQ analyzer and compile it to WebAssembly."></textarea>
-          <div class="composer-actions">
-            <div class="chip-row">
-              <button id="seed-chat" class="ghost-button" type="button">Seed Chat</button>
-              <button id="seed-analysis" class="ghost-button" type="button">Seed FastQ</button>
-              <button id="seed-game" class="ghost-button" type="button">Seed Game</button>
+          <textarea id="prompt-input" rows="3" placeholder="Ask anything, or tell MoonAP what you want to build."></textarea>
+          <div class="composer-actions simple-composer-actions">
+            <div class="composer-shortcuts">
+              <button id="open-settings-button-secondary" class="ghost-button" type="button">LLM</button>
+              <button id="open-skill-library-secondary" class="ghost-button" type="button">SKILL</button>
+              <button id="seed-analysis" class="ghost-button hidden" type="button">FastQ</button>
             </div>
             <button id="send-button" class="primary-button" type="submit">Send</button>
           </div>
         </form>
+
+        <section id="inspector-shell" class="inspector-shell hidden">
+          <section class="panel compact-panel">
+            <div class="tab-row" id="workbench-tabs">
+              <button class="tab-button active" type="button" data-workbench="results">Results</button>
+              <button class="tab-button" type="button" data-workbench="report">Report App</button>
+              <button class="tab-button" type="button" data-workbench="advanced">Advanced</button>
+            </div>
+            <p id="workbench-copy" class="supporting-text">Open this drawer only when you need output, generated code, or technical details.</p>
+          </section>
+
+          <div id="workbench-results" class="workbench-view">
+            <section class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Pipeline</p>
+                  <h2>Execution workbench</h2>
+                </div>
+                <button id="run-button" class="ghost-button" type="button" disabled>Run Wasm</button>
+              </div>
+              <ol class="pipeline-list">
+                <li id="pipeline-chat" class="pipeline-step active">Collect intent and context from the conversation</li>
+                <li id="pipeline-moonbit" class="pipeline-step">Generate MoonBit code for the selected task mode</li>
+                <li id="pipeline-build" class="pipeline-step">Compile MoonBit to WebAssembly</li>
+                <li id="pipeline-run" class="pipeline-step">Run the Wasm artifact in the browser</li>
+              </ol>
+            </section>
+
+            <section class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Analysis</p>
+                  <h2>Local analysis</h2>
+                </div>
+              </div>
+              <pre id="analysis-output">No local analysis yet.</pre>
+            </section>
+
+            <section class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Benchmark</p>
+                  <h2>Benchmark readiness</h2>
+                </div>
+              </div>
+              <pre id="benchmark-output">No benchmark profile yet.</pre>
+            </section>
+
+            <section class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Report</p>
+                  <h2>Benchmark report</h2>
+                </div>
+              </div>
+              <pre id="benchmark-report-output">No benchmark report yet.</pre>
+            </section>
+          </div>
+
+          <div id="workbench-report" class="workbench-view hidden">
+            <section class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Report App</p>
+                  <h2>MoonBit code</h2>
+                </div>
+              </div>
+              <p id="artifact-title" class="artifact-title">No report app yet</p>
+              <p id="artifact-summary" class="artifact-summary">Choose a mode that needs code generation to see a MoonBit report app here.</p>
+              <p id="artifact-warning" class="artifact-warning"></p>
+              <pre id="code-output">// waiting for generated code...</pre>
+            </section>
+
+            <section class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Runtime</p>
+                  <h2>Program output</h2>
+                </div>
+              </div>
+              <pre id="program-output">waiting for wasm...</pre>
+            </section>
+          </div>
+
+          <div id="workbench-advanced" class="workbench-view hidden">
+            <details class="panel details-panel" open>
+              <summary class="details-summary">
+                <div>
+                  <p class="eyebrow">Developer Details</p>
+                  <h2>Inspect technical internals</h2>
+                </div>
+                <span class="mini-badge">advanced</span>
+              </summary>
+
+              <section class="subpanel">
+                <div class="panel-header">
+                  <div>
+                    <p class="eyebrow">Sources</p>
+                    <h2>Generated source files</h2>
+                  </div>
+                </div>
+                <pre id="source-files-output">No generated source files yet.</pre>
+              </section>
+
+              <section class="subpanel">
+                <div class="panel-header">
+                  <div>
+                    <p class="eyebrow">Verification</p>
+                    <h2>Verification gate</h2>
+                  </div>
+                </div>
+                <pre id="verification-output">No verification gate yet.</pre>
+              </section>
+
+              <section class="subpanel">
+                <div class="panel-header">
+                  <div>
+                    <p class="eyebrow">Manifest</p>
+                    <h2>Project manifest</h2>
+                  </div>
+                </div>
+                <pre id="manifest-output">No project manifest yet.</pre>
+              </section>
+
+              <section class="subpanel">
+                <div class="panel-header">
+                  <div>
+                    <p class="eyebrow">Kernel</p>
+                    <h2>Task kernel protocol</h2>
+                  </div>
+                </div>
+                <pre id="kernel-protocol-output">No task kernel protocol yet.</pre>
+              </section>
+
+              <section class="subpanel">
+                <div class="panel-header">
+                  <div>
+                    <p class="eyebrow">Skills</p>
+                    <h2>Reusable skill library</h2>
+                  </div>
+                </div>
+                <pre id="skill-output">No reusable skills yet.</pre>
+              </section>
+
+              <section class="subpanel">
+                <div class="panel-header">
+                  <div>
+                    <p class="eyebrow">Build</p>
+                    <h2>MoonBit build log</h2>
+                  </div>
+                </div>
+                <pre id="build-log">No MoonBit build has been run yet.</pre>
+              </section>
+            </details>
+          </div>
+        </section>
       </main>
-
-      <aside class="workbench">
-        <section class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Pipeline</p>
-              <h2>Execution workbench</h2>
-            </div>
-            <button id="run-button" class="ghost-button" type="button" disabled>Run Wasm</button>
-          </div>
-          <ol class="pipeline-list">
-            <li id="pipeline-chat" class="pipeline-step active">Collect intent and context from the conversation</li>
-            <li id="pipeline-moonbit" class="pipeline-step">Generate MoonBit code for the selected task mode</li>
-            <li id="pipeline-build" class="pipeline-step">Compile MoonBit to WebAssembly</li>
-            <li id="pipeline-run" class="pipeline-step">Run the Wasm artifact in the browser</li>
-          </ol>
-        </section>
-
-        <section class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Analysis</p>
-              <h2>Local analysis</h2>
-            </div>
-          </div>
-          <pre id="analysis-output">No local analysis yet.</pre>
-        </section>
-
-        <section class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Artifact</p>
-              <h2>MoonBit code</h2>
-            </div>
-          </div>
-          <p id="artifact-title" class="artifact-title">No artifact yet</p>
-          <p id="artifact-summary" class="artifact-summary">Choose a mode that needs code generation to see a MoonBit artifact here.</p>
-          <p id="artifact-warning" class="artifact-warning"></p>
-          <pre id="code-output">// waiting for generated code...</pre>
-        </section>
-
-        <section class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Sources</p>
-              <h2>Generated source files</h2>
-            </div>
-          </div>
-          <pre id="source-files-output">No generated source files yet.</pre>
-        </section>
-
-        <section class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Verification</p>
-              <h2>Verification gate</h2>
-            </div>
-          </div>
-          <pre id="verification-output">No verification gate yet.</pre>
-        </section>
-
-        <section class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Manifest</p>
-              <h2>Project manifest</h2>
-            </div>
-          </div>
-          <pre id="manifest-output">No project manifest yet.</pre>
-        </section>
-
-        <section class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Kernel</p>
-              <h2>Task kernel protocol</h2>
-            </div>
-          </div>
-          <pre id="kernel-protocol-output">No task kernel protocol yet.</pre>
-        </section>
-
-        <section class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Benchmark</p>
-              <h2>Benchmark readiness</h2>
-            </div>
-          </div>
-          <pre id="benchmark-output">No benchmark profile yet.</pre>
-        </section>
-
-        <section class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Report</p>
-              <h2>Benchmark report</h2>
-            </div>
-          </div>
-          <pre id="benchmark-report-output">No benchmark report yet.</pre>
-        </section>
-
-        <section class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Skills</p>
-              <h2>Reusable skill library</h2>
-            </div>
-          </div>
-          <pre id="skill-output">No reusable skills yet.</pre>
-        </section>
-
-        <section class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Runtime</p>
-              <h2>Program output</h2>
-            </div>
-          </div>
-          <pre id="program-output">waiting for wasm...</pre>
-        </section>
-
-        <section class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="eyebrow">Build</p>
-              <h2>MoonBit build log</h2>
-            </div>
-          </div>
-          <pre id="build-log">No MoonBit build has been run yet.</pre>
-        </section>
-      </aside>
     </div>
+
+    <dialog id="llm-settings-dialog" class="skill-dialog">
+      <div class="skill-dialog-shell">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Model</p>
+            <h2>LLM API Settings</h2>
+            <p class="supporting-text">Configure your own cloud LLM for live chat and MoonBit generation.</p>
+          </div>
+          <button id="close-settings-button" class="ghost-button" type="button">Close</button>
+        </div>
+        <div class="preset-row">
+          <button class="preset-button" type="button" data-preset="glm51">
+            <strong>GLM 5.1</strong>
+            <span>Official Z.AI OpenAI-compatible template for MoonAP</span>
+          </button>
+          <button class="preset-button" type="button" data-preset="openrouter">
+            <strong>OpenRouter</strong>
+            <span>Use the free router for lightweight testing</span>
+          </button>
+        </div>
+        <label class="field">
+          <span>Base URL</span>
+          <input id="llm-base-url" type="text" placeholder="https://your-endpoint/v1" />
+        </label>
+        <label class="field">
+          <span>API Key</span>
+          <input id="llm-api-key" type="password" placeholder="sk-..." />
+        </label>
+        <label class="field">
+          <span>Model</span>
+          <input id="llm-model" type="text" placeholder="glm-5.1" />
+        </label>
+        <div class="button-row">
+          <button id="save-llm-settings" class="primary-button" type="button">Save API Settings</button>
+        </div>
+        <p id="llm-status" class="supporting-text">Configure a compatible endpoint to unlock real cloud chat and live MoonBit code generation.</p>
+        <span id="llm-config-badge" class="mini-badge">needs setup</span>
+      </div>
+    </dialog>
+
+    <dialog id="skill-library-dialog" class="skill-dialog">
+      <div class="skill-dialog-shell">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Skill Library</p>
+            <h2>Built-in MoonAP skills</h2>
+          </div>
+          <button id="close-skill-library" class="ghost-button" type="button">Close</button>
+        </div>
+        <div id="skill-library-grid" class="skill-library-grid"></div>
+      </div>
+    </dialog>
 
     <script type="module" src="/chat.js"></script>
   </body>
