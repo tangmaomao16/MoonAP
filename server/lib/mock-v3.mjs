@@ -23,6 +23,14 @@ function csvDemoProgram() {
   return `fn split_count(line : String, delimiter : Char) -> Int {\n  let mut count = 1\n  for char in line {\n    if char == delimiter {\n      count = count + 1\n    }\n  }\n  count\n}\n\nfn main {\n  let header = "sample_id,group,score"\n  println("header = " + header)\n  println("column count = " + split_count(header, ',').to_string())\n}`;
 }
 
+function gameDemoProgram() {
+  return `struct Player {\n  x : Int\n  score : Int\n}\n\nfn step(player : Player, tick : Int) -> Player {\n  let shift = if tick % 2 == 0 { 1 } else { 2 }\n  { x: player.x + shift, score: player.score + 10 }\n}\n\nfn main {\n  let mut player = { x: 0, score: 0 }\n  let mut tick = 0\n  while tick < 5 {\n    player = step(player, tick)\n    println("tick=" + tick.to_string() + " x=" + player.x.to_string() + " score=" + player.score.to_string())\n    tick = tick + 1\n  }\n  println("MoonAP game core ready for browser-side rendering integration.")\n}`;
+}
+
+function workflowProgram(prompt) {
+  return `fn main {\n  println("MoonAP MoonBit task")\n  println("request = ${safePrompt(prompt)}")\n  println("next = compile to WebAssembly and run in the browser")\n}`;
+}
+
 function safePrompt(prompt) {
   return prompt.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
@@ -30,6 +38,8 @@ function safePrompt(prompt) {
 export function generateMockChatReply(prompt, context = {}) {
   const fileInfo = context.fileInfo || null;
   const analysis = context.analysis || null;
+  const selectedMode = context.selectedMode || "chat";
+  const artifact = context.artifact || null;
   const normalized = prompt.toLowerCase();
 
   if (analysis) {
@@ -38,12 +48,24 @@ export function generateMockChatReply(prompt, context = {}) {
       "",
       analysis.summary,
       "",
-      "If you want, I can next refine the analysis logic or produce a more specialized MoonBit example.",
+      artifact ? `I also prepared a MoonBit artifact called "${artifact.title}" that you can compile to Wasm and run.` : "If you want, I can next refine the analysis logic or produce a more specialized MoonBit example.",
     ].join("\n");
   }
 
   if (fileInfo) {
     return `I loaded the local file context for ${fileInfo.path}. You can now ask for FastQ quality stats, CSV structure checks, JSON inspection, or a custom local analysis workflow.`;
+  }
+
+  if (selectedMode === "fastq-agent") {
+    return "FastQ analyst mode is active. Attach a local FASTQ file path and I will generate MoonBit-assisted analysis plus an optional Wasm runnable artifact.";
+  }
+
+  if (selectedMode === "game-agent") {
+    return "Game studio mode is active. Describe the gameplay loop you want, and I will prepare MoonBit code that can be compiled to WebAssembly for browser execution.";
+  }
+
+  if (selectedMode === "moonbit-task") {
+    return "MoonBit builder mode is active. Describe the task you want automated, and I will focus on generating MoonBit code suitable for WebAssembly execution.";
   }
 
   if (contains(normalized, ["chatgpt", "assistant", "moonap"])) {
@@ -57,6 +79,23 @@ export function generateMockMoonBit(prompt, context = {}) {
   const normalized = prompt.toLowerCase();
   const fileInfo = context.fileInfo || null;
   const analysis = context.analysis || null;
+  const selectedMode = context.selectedMode || "chat";
+
+  if (selectedMode === "game-agent" || contains(normalized, ["game", "小游戏", "canvas", "arcade"])) {
+    return {
+      title: "Browser Mini-Game Core",
+      summary: "Generated a MoonBit gameplay core that can act as the logic layer for a browser mini-game compiled to WebAssembly.",
+      moonbitCode: gameDemoProgram(),
+    };
+  }
+
+  if (selectedMode === "moonbit-task") {
+    return {
+      title: "MoonBit Workflow Starter",
+      summary: "Generated a MoonBit-first starter program for the requested task so it can continue into the WebAssembly execution flow.",
+      moonbitCode: workflowProgram(prompt),
+    };
+  }
 
   if (analysis?.analysisType === "fastq-n-stats" || contains(normalized, ["fastq", ".fastq", ".fq", "n base"])) {
     return {

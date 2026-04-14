@@ -7,91 +7,216 @@
     <link rel="stylesheet" href="/chat.css" />
   </head>
   <body>
-    <div class="shell">
+    <div class="app-shell">
       <aside class="sidebar">
-        <div class="brand">
+        <div class="brand-card">
           <div class="brand-mark">M</div>
-          <div>
-            <p class="eyebrow">MoonAP</p>
-            <h1>Local-first agent chat</h1>
+          <div class="brand-copy">
+            <p class="eyebrow">MoonBit Agent Playground</p>
+            <h1>MoonAP</h1>
+            <p>Chat like ChatGPT, then switch into MoonBit -> WebAssembly workflows when a task needs execution.</p>
           </div>
         </div>
 
-        <section class="sidebar-card">
-          <h2>LLM Settings</h2>
-          <label class="field"><span>Base URL</span><input id="llm-base-url" type="text" placeholder="https://your-endpoint/v1" /></label>
-          <label class="field"><span>API Key</span><input id="llm-api-key" type="password" placeholder="sk-..." /></label>
-          <label class="field"><span>Model</span><input id="llm-model" type="text" placeholder="gpt-4.1-mini" /></label>
-          <button id="save-llm-settings" class="ghost-button" type="button">Save Settings</button>
-          <p class="microcopy">If left empty, MoonAP uses the local fallback logic.</p>
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Modes</p>
+              <h2>Pick a workflow</h2>
+            </div>
+            <span id="moon-version" class="mini-badge">MoonBit: checking</span>
+          </div>
+          <div id="mode-picker" class="mode-picker">
+            <button class="mode-card active" type="button" data-mode="chat">
+              <strong>Chat</strong>
+              <span>General planning, Q&amp;A, product thinking</span>
+            </button>
+            <button class="mode-card" type="button" data-mode="moonbit-task">
+              <strong>MoonBit Builder</strong>
+              <span>Generate MoonBit code for a practical task</span>
+            </button>
+            <button class="mode-card" type="button" data-mode="fastq-agent">
+              <strong>FastQ Analyst</strong>
+              <span>Inspect a local FastQ file and produce analysis logic</span>
+            </button>
+            <button class="mode-card" type="button" data-mode="game-agent">
+              <strong>Game Studio</strong>
+              <span>Prototype a browser mini-game with MoonBit and Wasm</span>
+            </button>
+          </div>
         </section>
 
-        <section class="sidebar-card">
-          <h2>Local File</h2>
-          <label class="field"><span>File Path</span><input id="file-path-input" type="text" placeholder="C:\data\sample.fastq" /></label>
-          <div class="stack-row">
-            <button id="inspect-file-button" class="ghost-button" type="button">Inspect</button>
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Model</p>
+              <h2>LLM API</h2>
+            </div>
+          </div>
+          <div class="preset-row">
+            <button class="preset-button" type="button" data-preset="glm51">
+              <strong>GLM 5.1</strong>
+              <span>Official Z.AI OpenAI-compatible template for MoonAP</span>
+            </button>
+            <button class="preset-button" type="button" data-preset="openrouter">
+              <strong>OpenRouter</strong>
+              <span>Use the free router for lightweight testing</span>
+            </button>
+          </div>
+          <label class="field">
+            <span>Base URL</span>
+            <input id="llm-base-url" type="text" placeholder="https://your-endpoint/v1" />
+          </label>
+          <label class="field">
+            <span>API Key</span>
+            <input id="llm-api-key" type="password" placeholder="sk-..." />
+          </label>
+          <label class="field">
+            <span>Model</span>
+            <input id="llm-model" type="text" placeholder="gpt-4.1-mini" />
+          </label>
+          <div class="button-row">
+            <button id="save-llm-settings" class="ghost-button" type="button">Save API Settings</button>
+          </div>
+          <p id="llm-status" class="supporting-text">Fill these values to use your own LLM endpoint. If left empty, MoonAP uses the local fallback logic.</p>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">File Context</p>
+              <h2>Attach local data</h2>
+            </div>
+          </div>
+          <label class="field">
+            <span>Local File Path</span>
+            <input id="file-path-input" type="text" placeholder="C:\data\sample.fastq" />
+          </label>
+          <div class="button-row">
+            <button id="inspect-file-button" class="ghost-button" type="button">Inspect File</button>
             <button id="clear-file-button" class="ghost-button" type="button">Clear</button>
           </div>
           <div id="file-summary" class="file-summary">No local file attached.</div>
         </section>
-
-        <section class="sidebar-card tips">
-          <h2>How it works</h2>
-          <p>Normal chat stays in conversation mode.</p>
-          <p>When you attach a local file and ask for analysis, MoonAP switches to the MoonBit -> Wasm path.</p>
-        </section>
       </aside>
 
-      <main class="main">
-        <header class="topbar">
+      <main class="chat-stage">
+        <header class="chat-header">
           <div>
-            <p class="eyebrow">Chat</p>
-            <h2>Talk to MoonAP</h2>
+            <p class="eyebrow">Workspace</p>
+            <h2 id="workspace-title">Chat with MoonAP</h2>
+            <p id="workspace-subtitle" class="supporting-text">Use MoonAP like a conversational coding agent, then switch into executable MoonBit workflows.</p>
           </div>
-          <div class="status-group">
+          <div class="badge-group">
+            <span id="experience-badge" class="status-badge">workflow: chat</span>
             <span id="mode-badge" class="status-badge">mode: chat</span>
             <span id="adapter-badge" class="status-badge">adapter: local</span>
             <span id="run-badge" class="status-badge">wasm: idle</span>
           </div>
         </header>
 
+        <section id="empty-state" class="empty-state">
+          <div class="empty-hero">
+            <p class="eyebrow">MoonBit-first agent product</p>
+            <h3>What do you want MoonAP to build or analyze?</h3>
+            <p>Start with a natural-language request, choose a workflow mode, and let MoonAP decide whether it should stay conversational or generate MoonBit -> Wasm artifacts for browser execution.</p>
+          </div>
+          <div class="prompt-grid">
+            <button class="prompt-card" type="button" data-prompt="Design a practical MoonBit-first agent workflow for local FastQ quality analysis." data-mode="chat">
+              <strong>Product planning</strong>
+              <span>Ask for architecture, UX, or task design help.</span>
+            </button>
+            <button class="prompt-card" type="button" data-prompt="Generate a MoonBit tool that reads user intent, tracks context as JSON, and prepares a Wasm-ready task pipeline." data-mode="moonbit-task">
+              <strong>MoonBit builder</strong>
+              <span>Create executable MoonBit code from a product request.</span>
+            </button>
+            <button class="prompt-card" type="button" data-prompt="Please analyze this FastQ file, count N bases, compute the ratio, and generate a MoonBit demo program." data-mode="fastq-agent">
+              <strong>FastQ analysis</strong>
+              <span>Inspect a local file and produce analysis logic.</span>
+            </button>
+            <button class="prompt-card" type="button" data-prompt="Generate a browser mini-game in MoonBit with a simple dodge gameplay loop and WebAssembly-friendly game logic." data-mode="game-agent">
+              <strong>Browser mini-game</strong>
+              <span>Prototype gameplay logic for browser execution.</span>
+            </button>
+          </div>
+        </section>
+
         <section id="messages" class="messages"></section>
 
         <form id="chat-form" class="composer">
-          <textarea id="prompt-input" rows="3" placeholder="Message MoonAP... Example: please analyze this FastQ file and count N bases."></textarea>
-          <div class="composer-row">
-            <button id="seed-chat" class="ghost-button" type="button">Seed Chat</button>
-            <button id="seed-analysis" class="ghost-button" type="button">Seed Analysis</button>
-            <button id="send-button" type="submit">Send</button>
+          <div class="composer-topline">
+            <span id="composer-mode-label" class="mini-badge">Chat mode</span>
+            <span class="supporting-text">MoonAP can chat, generate MoonBit, compile Wasm, and run results in the browser.</span>
+          </div>
+          <textarea id="prompt-input" rows="4" placeholder="Message MoonAP. Example: generate a MoonBit FastQ analyzer and compile it to WebAssembly."></textarea>
+          <div class="composer-actions">
+            <div class="chip-row">
+              <button id="seed-chat" class="ghost-button" type="button">Seed Chat</button>
+              <button id="seed-analysis" class="ghost-button" type="button">Seed FastQ</button>
+              <button id="seed-game" class="ghost-button" type="button">Seed Game</button>
+            </div>
+            <button id="send-button" class="primary-button" type="submit">Send</button>
           </div>
         </form>
       </main>
 
       <aside class="workbench">
-        <section class="workbench-card">
-          <div class="card-header"><h3>Local Analysis</h3></div>
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Pipeline</p>
+              <h2>Execution workbench</h2>
+            </div>
+            <button id="run-button" class="ghost-button" type="button" disabled>Run Wasm</button>
+          </div>
+          <ol class="pipeline-list">
+            <li id="pipeline-chat" class="pipeline-step active">Collect intent and context from the conversation</li>
+            <li id="pipeline-moonbit" class="pipeline-step">Generate MoonBit code for the selected task mode</li>
+            <li id="pipeline-build" class="pipeline-step">Compile MoonBit to WebAssembly</li>
+            <li id="pipeline-run" class="pipeline-step">Run the Wasm artifact in the browser</li>
+          </ol>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Analysis</p>
+              <h2>Local analysis</h2>
+            </div>
+          </div>
           <pre id="analysis-output">No local analysis yet.</pre>
         </section>
 
-        <section class="workbench-card">
-          <div class="card-header">
-            <h3>MoonBit Artifact</h3>
-            <button id="run-button" class="ghost-button" type="button" disabled>Run Wasm</button>
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Artifact</p>
+              <h2>MoonBit code</h2>
+            </div>
           </div>
           <p id="artifact-title" class="artifact-title">No artifact yet</p>
-          <p id="artifact-summary" class="artifact-summary">MoonBit code will appear here only when file analysis mode is triggered.</p>
+          <p id="artifact-summary" class="artifact-summary">Choose a mode that needs code generation to see a MoonBit artifact here.</p>
           <p id="artifact-warning" class="artifact-warning"></p>
           <pre id="code-output">// waiting for generated code...</pre>
         </section>
 
-        <section class="workbench-card">
-          <div class="card-header"><h3>Program Output</h3></div>
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Runtime</p>
+              <h2>Program output</h2>
+            </div>
+          </div>
           <pre id="program-output">waiting for wasm...</pre>
         </section>
 
-        <section class="workbench-card">
-          <div class="card-header"><h3>Build Log</h3></div>
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Build</p>
+              <h2>MoonBit build log</h2>
+            </div>
+          </div>
           <pre id="build-log">No MoonBit build has been run yet.</pre>
         </section>
       </aside>

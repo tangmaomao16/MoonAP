@@ -1,12 +1,40 @@
 import fs from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
+import { spawn } from "node:child_process";
 import { PORT, ROOT_DIR } from "./lib/config.mjs";
 import { generateMoonAPResponse } from "./lib/chat-engine-v3.mjs";
 import { inspectLocalFile } from "./lib/local-file-service.mjs";
 import { compileMoonBitToWasm } from "./lib/moonbit-compiler.mjs";
 
 const WEB_ROOT = path.join(ROOT_DIR, "web");
+const moonVersionPromise = detectMoonVersion();
+
+function detectMoonVersion() {
+  return new Promise((resolve) => {
+    const child = spawn("moon", ["version"], {
+      cwd: ROOT_DIR,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    child.on("error", () => resolve("moon cli unavailable"));
+    child.on("close", () => {
+      const text = [stdout.trim(), stderr.trim()].filter(Boolean).join(" ").trim();
+      resolve(text || "moon version unavailable");
+    });
+  });
+}
 
 function sendJson(response, statusCode, payload) {
   response.writeHead(statusCode, {
@@ -75,7 +103,7 @@ const server = http.createServer(async (request, response) => {
   }
 
   if (request.method === "GET" && request.url === "/api/health") {
-    sendJson(response, 200, { ok: true });
+    sendJson(response, 200, { ok: true, moonVersion: await moonVersionPromise });
     return;
   }
 
@@ -85,6 +113,7 @@ const server = http.createServer(async (request, response) => {
       const prompt = String(body.message || "").trim();
       const history = Array.isArray(body.history) ? body.history : [];
       const filePath = String(body.filePath || "").trim();
+      const selectedMode = String(body.selectedMode || "chat").trim();
       const llmConfig = body.llmConfig && typeof body.llmConfig === "object" ? body.llmConfig : {};
 
       if (!prompt) {
@@ -96,6 +125,7 @@ const server = http.createServer(async (request, response) => {
         prompt,
         history,
         filePath,
+        selectedMode,
         llmConfig,
       });
 
@@ -107,6 +137,7 @@ const server = http.createServer(async (request, response) => {
       sendJson(response, 200, {
         ok: true,
         mode: result.mode,
+        experienceMode: result.experienceMode,
         assistant: result.assistant,
         fileInfo: result.fileInfo,
         analysis: result.analysis,
