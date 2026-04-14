@@ -130,8 +130,8 @@ const server = http.createServer(async (request, response) => {
       });
 
       let compiled = null;
-      if (result.artifact?.moonbitCode) {
-        compiled = await compileMoonBitToWasm(result.artifact.moonbitCode);
+      if (result.artifact?.moonbitCode || result.artifact?.sourceFiles?.length) {
+        compiled = await compileMoonBitToWasm(result.artifact);
       }
 
       sendJson(response, 200, {

@@ -59,7 +59,7 @@ export async function generateMoonBitProgram(prompt, history = [], llmConfig = {
       {
         role: "system",
         content:
-          "You are MoonAP, an expert MoonBit code generator. Return strict JSON with keys: title, summary, moonbitCode. moonbitCode must compile as cmd/main/main.mbt and include fn main { ... }.",
+          "You are MoonAP, an expert MoonBit code generator. Return strict JSON with keys: title, summary, moonbitCode. You may also include sourceFiles, projectManifest, skills, verificationGate. If sourceFiles is present, it must be an array of objects with path and content, and cmd/main/main.mbt must exist. moonbitCode must still be present and compile as cmd/main/main.mbt with fn main { ... }.",
       },
       ...history.map((item) => ({ role: item.role, content: item.content })),
       { role: "user", content: prompt },
@@ -75,5 +75,9 @@ export async function generateMoonBitProgram(prompt, history = [], llmConfig = {
     title: parsed.title || "Generated MoonBit Program",
     summary: parsed.summary || "Generated MoonBit code from the remote model.",
     moonbitCode: parsed.moonbitCode,
+    sourceFiles: Array.isArray(parsed.sourceFiles) ? parsed.sourceFiles : undefined,
+    projectManifest: parsed.projectManifest && typeof parsed.projectManifest === "object" ? parsed.projectManifest : undefined,
+    skills: Array.isArray(parsed.skills) ? parsed.skills : undefined,
+    verificationGate: Array.isArray(parsed.verificationGate) ? parsed.verificationGate : undefined,
   };
 }

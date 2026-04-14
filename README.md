@@ -9,14 +9,21 @@ This project aims to build a ChatGPT-like web application with a MoonBit-first w
 - the system compiles that MoonBit code to WebAssembly
 - the browser runs the generated program directly
 
-The project is designed for the MoonBit software development competition, so the long-term goal is to move more of the agent logic into MoonBit itself, not just use MoonBit as a compilation target.
+The project is designed for the MoonBit software development competition, so the long-term goal is to move more of the agent logic into MoonBit itself, not just use MoonBit as a compilation target. The intended end state is a MoonBit software synthesis platform for local-first data computing.
 
 ## Project Vision
 
 MoonAP is especially suited for two kinds of scenarios:
 
-- data-oriented local analysis, such as FastQ file inspection and statistics
+- data-oriented local analysis, especially FastQ file inspection and statistics
 - browser-native interactive programs, such as small games generated from prompts
+
+The primary competition scenario is local FastQ analysis:
+
+- analyze GB-level sequencing files without uploading them to the cloud
+- synthesize MoonBit projects for the requested analysis
+- compile them to WebAssembly
+- run them in the browser while keeping data on the user's machine
 
 The intended architecture is:
 
@@ -61,6 +68,7 @@ In the current prototype, you can:
 - let the server generate MoonBit code
 - compile the generated MoonBit code to Wasm
 - run the Wasm result in the browser
+- inspect the generated project manifest, verification gate, reusable skills, and benchmark profile
 
 Current workflow modes:
 
@@ -92,6 +100,8 @@ This prints a demo `AgentContext` as formatted JSON. The current MoonBit core mo
 - task specifications
 - verification checks
 - generated file tracking
+- synthesis manifests
+- reusable skills
 - a `ready_for_wasm` gate
 
 This is the beginning of moving agent state management into MoonBit using JSON-friendly typed structures.
@@ -134,10 +144,29 @@ Already implemented:
 - local file inspection API
 - FastQ-oriented local analysis path
 - MoonBit code artifact generation
+- multi-file MoonBit project synthesis protocol
+- multi-file MoonBit -> Wasm compilation pipeline
+- project manifest generation
+- reusable skill summaries
+- verification gate summaries
+- benchmark readiness panel
 - automatic MoonBit -> Wasm compilation
 - browser-side Wasm execution
 - MoonBit version display in the UI
 - MoonBit-side agent context JSON model and verification gate demo
+
+## Competition Narrative
+
+MoonAP is not only a chat interface. It is intended to evolve into a MoonBit software synthesis system:
+
+1. understand a natural-language task
+2. normalize it into a MoonBit-friendly spec
+3. synthesize a small MoonBit project instead of a single code snippet
+4. apply verification gates and engineering checks
+5. compile to WebAssembly
+6. run the result locally in the browser
+
+The strongest showcase path is FastQ analysis with local-first execution and benchmarkable chunk-based processing.
 
 ## Competition-Oriented Next Steps
 

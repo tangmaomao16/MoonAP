@@ -31,6 +31,45 @@ function workflowProgram(prompt) {
   return `fn main {\n  println("MoonAP MoonBit task")\n  println("request = ${safePrompt(prompt)}")\n  println("next = compile to WebAssembly and run in the browser")\n}`;
 }
 
+function fastqSourceFiles() {
+  return [
+    {
+      path: "cmd/main/main.mbt",
+      content: `fn main {\n  let sample = "AATTCCGGNNNNA"\n  let n_count = count_n_bases(sample)\n  println("sample sequence = " + sample)\n  println("N bases = " + n_count.to_string())\n  println("ratio = " + n_count.to_string() + "/" + sample.length().to_string())\n}`,
+    },
+    {
+      path: "cmd/main/fastq_stats.mbt",
+      content: `fn count_n_bases(sequence : String) -> Int {\n  let mut total = 0\n  for char in sequence {\n    if char == 'N' || char == 'n' {\n      total = total + 1\n    }\n  }\n  total\n}`,
+    },
+  ];
+}
+
+function gameSourceFiles() {
+  return [
+    {
+      path: "cmd/main/main.mbt",
+      content: `fn main {\n  let mut player = { x: 0, score: 0 }\n  let mut tick = 0\n  while tick < 5 {\n    player = step(player, tick)\n    println("tick=" + tick.to_string() + " x=" + player.x.to_string() + " score=" + player.score.to_string())\n    tick = tick + 1\n  }\n  println("MoonAP game core ready for browser-side rendering integration.")\n}`,
+    },
+    {
+      path: "cmd/main/game_state.mbt",
+      content: `struct Player {\n  x : Int\n  score : Int\n}\n\nfn step(player : Player, tick : Int) -> Player {\n  let shift = if tick % 2 == 0 { 1 } else { 2 }\n  { x: player.x + shift, score: player.score + 10 }\n}`,
+    },
+  ];
+}
+
+function workflowSourceFiles(prompt) {
+  return [
+    {
+      path: "cmd/main/main.mbt",
+      content: `fn main {\n  let request = normalize_request("${safePrompt(prompt)}")\n  println("MoonAP MoonBit task")\n  println("request = " + request)\n  println("next = compile to WebAssembly and run in the browser")\n}`,
+    },
+    {
+      path: "cmd/main/agent_spec.mbt",
+      content: `fn normalize_request(raw : String) -> String {\n  raw.trim().replace(\"\\n\", \" \")\n}`,
+    },
+  ];
+}
+
 function buildProjectManifest({ packageName, entrypoint, projectFiles, skills, verificationGate }) {
   return {
     packageName,
@@ -209,6 +248,7 @@ export function generateMockMoonBit(prompt, context = {}) {
       title: "Browser Mini-Game Core",
       summary: "Generated a MoonBit gameplay core that can act as the logic layer for a browser mini-game compiled to WebAssembly.",
       moonbitCode: gameDemoProgram(),
+      sourceFiles: gameSourceFiles(),
     }, gameManifest());
   }
 
@@ -217,6 +257,7 @@ export function generateMockMoonBit(prompt, context = {}) {
       title: "MoonBit Workflow Starter",
       summary: "Generated a MoonBit-first starter program for the requested task so it can continue into the WebAssembly execution flow.",
       moonbitCode: workflowProgram(prompt),
+      sourceFiles: workflowSourceFiles(prompt),
     }, workflowManifest());
   }
 
@@ -225,6 +266,7 @@ export function generateMockMoonBit(prompt, context = {}) {
       title: "FastQ N Base Analyzer Demo",
       summary: "Generated a MoonBit demo program that shows the core counting logic for N bases.",
       moonbitCode: fastqDemoProgram(),
+      sourceFiles: fastqSourceFiles(),
     }, fastqManifest());
   }
 
@@ -233,6 +275,7 @@ export function generateMockMoonBit(prompt, context = {}) {
       title: "CSV Structure Demo",
       summary: "Generated a MoonBit demo program that illustrates simple CSV header analysis.",
       moonbitCode: csvDemoProgram(),
+      sourceFiles: workflowSourceFiles(prompt),
     }, workflowManifest());
   }
 
@@ -241,6 +284,7 @@ export function generateMockMoonBit(prompt, context = {}) {
       title: "Hello MoonBit",
       summary: "Generated a minimal runnable MoonBit program that prints a greeting.",
       moonbitCode: helloProgram("Hello from MoonBit and WebAssembly!"),
+      sourceFiles: workflowSourceFiles("Hello from MoonBit and WebAssembly!"),
     }, workflowManifest());
   }
 
@@ -250,6 +294,7 @@ export function generateMockMoonBit(prompt, context = {}) {
       title: "Sum Calculator",
       summary: "Generated a MoonBit program that adds numbers from 1 to the requested upper bound.",
       moonbitCode: sumProgram(n),
+      sourceFiles: workflowSourceFiles(`sum to ${n}`),
     }, workflowManifest());
   }
 
@@ -257,5 +302,6 @@ export function generateMockMoonBit(prompt, context = {}) {
     title: "MoonBit Starter",
     summary: "Returned a safe starter program when the local generator did not match a more specific intent.",
     moonbitCode: `fn main {\n  println("MoonAP received: ${safePrompt(prompt)}")\n  println("Tip: provide a file path and ask for local analysis to trigger the Wasm workflow.")\n}`,
+    sourceFiles: workflowSourceFiles(prompt),
   }, workflowManifest());
 }

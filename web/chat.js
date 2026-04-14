@@ -20,6 +20,7 @@ const artifactSummary = document.getElementById("artifact-summary");
 const artifactWarning = document.getElementById("artifact-warning");
 const verificationOutput = document.getElementById("verification-output");
 const manifestOutput = document.getElementById("manifest-output");
+const benchmarkOutput = document.getElementById("benchmark-output");
 const skillOutput = document.getElementById("skill-output");
 const modeBadge = document.getElementById("mode-badge");
 const adapterBadge = document.getElementById("adapter-badge");
@@ -198,6 +199,41 @@ function renderSkills(skills = []) {
     .join("\n\n");
 }
 
+function renderBenchmarkProfile({ mode = "chat", fileInfo = null, analysis = null, manifest = null }) {
+  if (!manifest) {
+    benchmarkOutput.textContent = "No benchmark profile yet.";
+    return;
+  }
+
+  if (mode === "fastq-agent" || analysis?.analysisType === "fastq-n-stats" || fileInfo?.detectedType === "fastq") {
+    const fileSize = fileInfo ? `${fileInfo.sizeBytes} bytes` : "attach a FASTQ file";
+    benchmarkOutput.textContent = [
+      "primary scenario = FastQ local analysis",
+      `current file size = ${fileSize}`,
+      "benchmark tiers = 0.1 GB / 1 GB / 5 GB",
+      "recommended chunk sizes = 4 MB / 8 MB / 16 MB",
+      "evaluation focus = memory peak, chunk throughput, total runtime, output correctness",
+      `generated project files = ${(manifest.projectFiles || []).length}`,
+    ].join("\n");
+    return;
+  }
+
+  if (mode === "game-agent") {
+    benchmarkOutput.textContent = [
+      "primary scenario = browser mini-game synthesis",
+      "evaluation focus = gameplay loop stability, wasm startup time, browser-safe runtime surface",
+      `generated project files = ${(manifest.projectFiles || []).length}`,
+    ].join("\n");
+    return;
+  }
+
+  benchmarkOutput.textContent = [
+    "primary scenario = MoonBit workflow synthesis",
+    "evaluation focus = project completeness, reusable skills, build success, explainability",
+    `generated project files = ${(manifest.projectFiles || []).length}`,
+  ].join("\n");
+}
+
 function updatePipeline(step) {
   [pipelineChat, pipelineMoonbit, pipelineBuild, pipelineRun].forEach((node) => {
     node.classList.remove("active", "complete");
@@ -267,6 +303,7 @@ function resetArtifactPanelForChat() {
   codeOutput.textContent = "// artifact generation is idle in chat mode";
   renderVerificationGate([]);
   renderProjectManifest(null);
+  renderBenchmarkProfile({});
   renderSkills([]);
   buildLog.textContent = "No MoonBit build was run for this message.";
   programOutput.textContent = "waiting for wasm...";
@@ -313,6 +350,12 @@ async function sendPrompt(prompt) {
   codeOutput.textContent = payload.artifact.moonbitCode;
   renderVerificationGate(payload.artifact.verificationGate || []);
   renderProjectManifest(payload.artifact.projectManifest || null);
+  renderBenchmarkProfile({
+    mode: payload.experienceMode || selectedMode,
+    fileInfo: currentFileInfo,
+    analysis: payload.analysis || null,
+    manifest: payload.artifact.projectManifest || null,
+  });
   renderSkills(payload.artifact.skills || []);
   buildLog.textContent = payload.artifact.buildLog || "moon build finished without extra logs.";
   latestWasmBase64 = payload.artifact.wasmBase64 || "";
