@@ -26,6 +26,7 @@ const artifactSummary = document.getElementById("artifact-summary");
 const artifactWarning = document.getElementById("artifact-warning");
 const verificationOutput = document.getElementById("verification-output");
 const manifestOutput = document.getElementById("manifest-output");
+const kernelProtocolOutput = document.getElementById("kernel-protocol-output");
 const benchmarkOutput = document.getElementById("benchmark-output");
 const benchmarkReportOutput = document.getElementById("benchmark-report-output");
 const skillOutput = document.getElementById("skill-output");
@@ -209,6 +210,28 @@ function renderProjectManifest(manifest) {
     `- ${file.path} | ${file.language} | ${file.purpose}`
   );
   manifestOutput.textContent = [...header, ...files].join("\n");
+}
+
+function renderTaskKernelProtocol(protocol = null) {
+  if (!protocol) {
+    kernelProtocolOutput.textContent = "No task kernel protocol yet.";
+    return;
+  }
+
+  kernelProtocolOutput.textContent = [
+    `protocol = ${protocol.protocolName}`,
+    `input mode = ${protocol.inputMode}`,
+    `state type = ${protocol.stateType}`,
+    `init = ${protocol.initFn}`,
+    `ingest = ${protocol.ingestFn}`,
+    `finalize = ${protocol.finalizeFn}`,
+    "",
+    "host responsibilities:",
+    ...(protocol.hostResponsibilities || []).map((item) => `- ${item}`),
+    "",
+    "kernel responsibilities:",
+    ...(protocol.kernelResponsibilities || []).map((item) => `- ${item}`),
+  ].join("\n");
 }
 
 function renderSourceFiles(sourceFiles = []) {
@@ -558,6 +581,7 @@ async function buildWasmFromBrowserAnalysis() {
   renderSourceFiles(payload.artifact.sourceFiles || []);
   renderVerificationGate(payload.artifact.verificationGate || []);
   renderProjectManifest(payload.artifact.projectManifest || null);
+  renderTaskKernelProtocol(payload.artifact.taskKernelProtocol || null);
   renderBenchmarkProfile(payload.artifact.benchmarkProfile || null);
   renderBenchmarkReport(payload.analysis?.benchmarkReport || latestBrowserAnalysis.benchmarkReport || "");
   renderSkills(payload.artifact.skills || []);
@@ -587,6 +611,104 @@ async function runWasm(wasmBase64) {
   return collected.join("");
 }
 
+async function instantiateWasmModule(wasmBase64) {
+  const wasmBytes = Uint8Array.from(atob(wasmBase64), (char) => char.charCodeAt(0));
+  return WebAssembly.instantiate(wasmBytes, {
+    spectest: {
+      print_char() {},
+    },
+  });
+}
+
+async function analyzeBrowserFastqFileWithWasm(file, wasmBase64) {
+  const module = await instantiateWasmModule(wasmBase64);
+  const exports = module.instance.exports;
+
+  if (typeof exports.is_n_base !== "function" || typeof exports.is_gc_base !== "function" || typeof exports.is_sequence_line !== "function") {
+    throw new Error("The generated Wasm artifact does not expose FastQ analysis functions.");
+  }
+  if (
+    typeof exports.is_sequence_state !== "function" ||
+    typeof exports.next_fastq_state !== "function" ||
+    typeof exports.accumulate_read_count !== "function" ||
+    typeof exports.accumulate_total_bases !== "function" ||
+    typeof exports.accumulate_n_bases !== "function" ||
+    typeof exports.accumulate_gc_bases !== "function" ||
+    typeof exports.update_longest_read !== "function" ||
+    typeof exports.update_shortest_read !== "function"
+  ) {
+    throw new Error("The generated Wasm artifact does not expose FastQ accumulation helpers.");
+  }
+
+  const chunkSizes = chooseBrowserChunkSizes(file.size);
+  const primaryChunkSize = chunkLabelToBytes(chunkSizes[0]);
+  const decoder = new TextDecoder();
+  let offset = 0;
+  let carry = "";
+  let fastqState = 0;
+  let readCount = 0;
+  let totalBases = 0;
+  let nBases = 0;
+  let gcBases = 0;
+  let longestRead = 0;
+  let shortestRead = Number.MAX_SAFE_INTEGER;
+  const startedAt = performance.now();
+
+  while (offset < file.size) {
+    const nextOffset = Math.min(offset + primaryChunkSize, file.size);
+    const chunk = await file.slice(offset, nextOffset).arrayBuffer();
+    const text = carry + decoder.decode(chunk, { stream: nextOffset < file.size });
+    const lines = text.split(/\r?\n/);
+    carry = lines.pop() || "";
+
+    for (const line of lines) {
+      if (Number(exports.is_sequence_state(fastqState)) === 1) {
+        const readLength = line.length;
+        readCount = Number(exports.accumulate_read_count(readCount, fastqState));
+        longestRead = Number(exports.update_longest_read(longestRead, readLength));
+        shortestRead = Number(exports.update_shortest_read(shortestRead, readLength));
+        for (const char of line) {
+          const code = char.charCodeAt(0);
+          totalBases = Number(exports.accumulate_total_bases(totalBases, code));
+          nBases = Number(exports.accumulate_n_bases(nBases, code));
+          gcBases = Number(exports.accumulate_gc_bases(gcBases, code));
+        }
+      }
+      fastqState = Number(exports.next_fastq_state(fastqState));
+    }
+
+    offset = nextOffset;
+  }
+
+  if (carry.length > 0 && Number(exports.is_sequence_state(fastqState)) === 1) {
+    const readLength = carry.length;
+    readCount = Number(exports.accumulate_read_count(readCount, fastqState));
+    longestRead = Number(exports.update_longest_read(longestRead, readLength));
+    shortestRead = Number(exports.update_shortest_read(shortestRead, readLength));
+    for (const char of carry) {
+      const code = char.charCodeAt(0);
+      totalBases = Number(exports.accumulate_total_bases(totalBases, code));
+      nBases = Number(exports.accumulate_n_bases(nBases, code));
+      gcBases = Number(exports.accumulate_gc_bases(gcBases, code));
+    }
+  }
+
+  return {
+    metrics: {
+      readCount,
+      totalBases,
+      nBases,
+      gcBases,
+      nRatio: totalBases ? nBases / totalBases : 0,
+      gcRatio: totalBases ? gcBases / totalBases : 0,
+      averageReadLength: readCount ? totalBases / readCount : 0,
+      longestRead,
+      shortestRead: Number.isFinite(shortestRead) ? shortestRead : 0,
+    },
+    durationMs: performance.now() - startedAt,
+  };
+}
+
 function resetArtifactPanelForChat() {
   analysisOutput.textContent = "No local analysis was run for this message.";
   artifactTitle.textContent = "No artifact generated";
@@ -596,6 +718,7 @@ function resetArtifactPanelForChat() {
   renderSourceFiles([]);
   renderVerificationGate([]);
   renderProjectManifest(null);
+  renderTaskKernelProtocol(null);
   renderBenchmarkProfile(null);
   renderBenchmarkReport("");
   renderSkills([]);
@@ -645,6 +768,7 @@ async function sendPrompt(prompt) {
   renderSourceFiles(payload.artifact.sourceFiles || []);
   renderVerificationGate(payload.artifact.verificationGate || []);
   renderProjectManifest(payload.artifact.projectManifest || null);
+  renderTaskKernelProtocol(payload.artifact.taskKernelProtocol || null);
   renderBenchmarkProfile(payload.artifact.benchmarkProfile || null);
   renderBenchmarkReport(payload.analysis?.benchmarkReport || "");
   renderSkills(payload.artifact.skills || []);
@@ -743,6 +867,27 @@ buildBrowserWasmButton.addEventListener("click", async () => {
   buildBrowserWasmButton.disabled = true;
   try {
     await buildWasmFromBrowserAnalysis();
+    if (latestWasmBase64 && currentBrowserFile && latestBrowserAnalysis) {
+      const wasmResult = await analyzeBrowserFastqFileWithWasm(currentBrowserFile, latestWasmBase64);
+      analysisOutput.textContent = [
+        latestBrowserAnalysis.summary,
+        "",
+        "MoonBit Wasm state-machine verification",
+        `- reads = ${wasmResult.metrics.readCount}`,
+        `- total bases = ${wasmResult.metrics.totalBases}`,
+        `- N ratio = ${formatPercent(wasmResult.metrics.nRatio)}`,
+        `- GC ratio = ${formatPercent(wasmResult.metrics.gcRatio)}`,
+        `- average read length = ${wasmResult.metrics.averageReadLength.toFixed(2)}`,
+        `- Wasm duration = ${wasmResult.durationMs.toFixed(2)} ms`,
+        "",
+        "comparison",
+        `- JS baseline N ratio = ${formatPercent(latestBrowserAnalysis.metrics.nRatio)}`,
+        `- Wasm export N ratio = ${formatPercent(wasmResult.metrics.nRatio)}`,
+        `- JS baseline GC ratio = ${formatPercent(latestBrowserAnalysis.metrics.gcRatio)}`,
+        `- Wasm export GC ratio = ${formatPercent(wasmResult.metrics.gcRatio)}`,
+        "- Wasm handled FastQ state progression and accumulation helpers for this pass",
+      ].join("\n");
+    }
   } catch (error) {
     addMessage("assistant", `Browser-analysis Wasm build failed: ${error.message}`);
     modeBadge.textContent = "mode: error";
@@ -760,6 +905,7 @@ clearFileButton.addEventListener("click", () => {
   renderFileInfo(null);
   renderBrowserFileInfo(null);
   analysisOutput.textContent = "No local analysis yet.";
+  renderTaskKernelProtocol(null);
   renderBenchmarkProfile(null);
   renderBenchmarkReport("");
   addMessage("assistant", "Cleared the current local file context.");

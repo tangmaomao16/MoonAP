@@ -67,11 +67,13 @@ In the current prototype, you can:
 - inspect or analyze a local file before starting a synthesis chat
 - choose a browser-local FastQ file and run chunk-based analysis without sending the file to the server
 - build a MoonBit Wasm report artifact directly from browser-local FastQ analysis results
+- verify browser-local FastQ metrics with Wasm-exported MoonBit analysis helpers
 - switch between dedicated task modes
 - let the server generate MoonBit code
 - compile the generated MoonBit code to Wasm
 - run the Wasm result in the browser
 - inspect the generated project manifest, source files, verification gate, reusable skills, benchmark profile, and benchmark report
+- inspect the task kernel protocol that defines what the browser host does and what the MoonBit kernel does
 
 Current workflow modes:
 
@@ -109,6 +111,26 @@ This prints a demo `AgentContext` as formatted JSON. The current MoonBit core mo
 - a `ready_for_wasm` gate
 
 This is the beginning of moving agent state management into MoonBit using JSON-friendly typed structures.
+
+## Task Kernel Protocol
+
+MoonAP now includes a generic task kernel protocol so the platform does not assume every task is the same kind of FastQ chunk counter.
+
+The protocol gives each synthesized MoonBit artifact a stable contract:
+
+- `input mode`: streaming bytes, streaming text, whole-file bytes, whole-file text, or interactive events
+- `state type`: the MoonBit state owned by the kernel
+- `init`, `ingest`, `finalize`: the lifecycle entrypoints the host and kernel agree on
+- `host responsibilities`: browser file APIs, local chunk reads, UI rendering, and bridge logic
+- `kernel responsibilities`: MoonBit task state, parsing, analysis, and result production
+
+Current built-in protocol families are:
+
+- `moonap.fastq.streaming.v1`
+- `moonap.workflow.whole-file.v1`
+- `moonap.browser.interactive.v1`
+
+See the full protocol note in [docs/task-kernel-protocol.md](/C:/my_work/MoonBit_Competition/GitHub/MoonAP/docs/task-kernel-protocol.md:1).
 
 ## Tests
 
@@ -162,6 +184,7 @@ Already implemented:
 - richer FastQ metrics including GC ratio, average read length, and chunk-ready benchmark planning
 - MoonBit code artifact generation
 - multi-file MoonBit project synthesis protocol
+- generic MoonBit task kernel protocol for streaming, whole-file, and interactive tasks
 - multi-file MoonBit -> Wasm compilation pipeline
 - project manifest generation
 - generated source file workbench
@@ -173,6 +196,7 @@ Already implemented:
 - reproducible FastQ benchmark suite with synthetic datasets and Wasm build validation
 - browser-local FastQ chunk analysis path for a true local-first demo
 - browser-local FastQ analysis -> MoonBit Wasm report synthesis mainline
+- Wasm-exported FastQ byte classifiers for browser-side verification
 - automatic MoonBit -> Wasm compilation
 - browser-side Wasm execution
 - MoonBit version display in the UI

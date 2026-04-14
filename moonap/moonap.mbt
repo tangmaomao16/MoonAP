@@ -13,6 +13,15 @@ pub enum VerificationLevel {
 } derive(Eq, Debug, ToJson, FromJson)
 
 ///|
+pub enum TaskKernelInputMode {
+  StreamingText
+  StreamingBytes
+  WholeFileText
+  WholeFileBytes
+  Interactive
+} derive(Eq, Debug, ToJson, FromJson)
+
+///|
 pub struct ChatMessage {
   role : String
   content : String
@@ -53,6 +62,18 @@ pub struct BenchmarkProfile {
 } derive(Eq, Debug, ToJson, FromJson)
 
 ///|
+pub struct TaskKernelProtocol {
+  protocol_name : String
+  input_mode : TaskKernelInputMode
+  state_type : String
+  init_fn : String
+  ingest_fn : String
+  finalize_fn : String
+  host_responsibilities : Array[String]
+  kernel_responsibilities : Array[String]
+} derive(Eq, Debug, ToJson, FromJson)
+
+///|
 pub struct SynthesisManifest {
   package_name : String
   entrypoint : String
@@ -61,6 +82,7 @@ pub struct SynthesisManifest {
   skills : Array[SkillRecord]
   verification_gate : Array[VerificationCheck]
   benchmark_profile : BenchmarkProfile?
+  task_kernel_protocol : TaskKernelProtocol?
 } derive(Eq, Debug, ToJson, FromJson)
 
 ///|
@@ -156,6 +178,29 @@ pub fn BenchmarkProfile::new(
 }
 
 ///|
+pub fn TaskKernelProtocol::new(
+  protocol_name : String,
+  input_mode : TaskKernelInputMode,
+  state_type : String,
+  init_fn : String,
+  ingest_fn : String,
+  finalize_fn : String,
+  host_responsibilities : Array[String],
+  kernel_responsibilities : Array[String],
+) -> TaskKernelProtocol {
+  {
+    protocol_name,
+    input_mode,
+    state_type,
+    init_fn,
+    ingest_fn,
+    finalize_fn,
+    host_responsibilities,
+    kernel_responsibilities,
+  }
+}
+
+///|
 pub fn SynthesisManifest::new(
   package_name : String,
   entrypoint : String,
@@ -164,6 +209,7 @@ pub fn SynthesisManifest::new(
   skills : Array[SkillRecord],
   verification_gate : Array[VerificationCheck],
   benchmark_profile : BenchmarkProfile?,
+  task_kernel_protocol : TaskKernelProtocol?,
 ) -> SynthesisManifest {
   {
     package_name,
@@ -173,6 +219,7 @@ pub fn SynthesisManifest::new(
     skills,
     verification_gate,
     benchmark_profile,
+    task_kernel_protocol,
   }
 }
 
@@ -405,6 +452,25 @@ pub fn fastq_demo_manifest(task : TaskSpec) -> SynthesisManifest {
     ["memory peak", "chunk throughput", "total runtime", "output correctness"],
     3,
   )
+  let task_kernel_protocol = TaskKernelProtocol::new(
+    "moonap.fastq.streaming.v1",
+    StreamingBytes,
+    "FastqStreamingState",
+    "init_state",
+    "ingest_chunk",
+    "finalize_report",
+    [
+      "open the local browser file and read it chunk by chunk",
+      "copy each chunk into the MoonBit/Wasm bridge",
+      "surface progress, benchmark metrics, and final report in the UI",
+    ],
+    [
+      "keep FastQ carry-over state between chunks",
+      "advance the four-line FastQ state machine",
+      "accumulate read count, N count, GC count, and read-length statistics",
+      "return a final analysis report that is safe to render in the browser",
+    ],
+  )
   SynthesisManifest::new(
     "moonap/fastq_n_ratio",
     "cmd/main/main.mbt",
@@ -432,6 +498,7 @@ pub fn fastq_demo_manifest(task : TaskSpec) -> SynthesisManifest {
     ],
     verification_gate,
     Some(benchmark_profile),
+    Some(task_kernel_protocol),
   )
 }
 
@@ -443,6 +510,24 @@ pub fn browser_game_demo_manifest(task : TaskSpec) -> SynthesisManifest {
     ["not-applicable"],
     ["gameplay loop stability", "wasm startup time", "browser-safe runtime surface"],
     3,
+  )
+  let task_kernel_protocol = TaskKernelProtocol::new(
+    "moonap.browser.interactive.v1",
+    Interactive,
+    "GameRuntimeState",
+    "init_state",
+    "ingest_event",
+    "finalize_frame",
+    [
+      "collect browser input events and timing information",
+      "forward events into the MoonBit game kernel",
+      "render the returned frame state in the browser shell",
+    ],
+    [
+      "own gameplay state transitions",
+      "apply player input and collision rules",
+      "emit browser-safe frame summaries for rendering",
+    ],
   )
   SynthesisManifest::new(
     "moonap/browser_game",
@@ -490,6 +575,7 @@ pub fn browser_game_demo_manifest(task : TaskSpec) -> SynthesisManifest {
       ),
     ],
     Some(benchmark_profile),
+    Some(task_kernel_protocol),
   )
 }
 

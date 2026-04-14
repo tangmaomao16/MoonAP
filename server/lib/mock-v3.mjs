@@ -1,3 +1,9 @@
+import {
+  fastqTaskKernelProtocol,
+  workflowTaskKernelProtocol,
+  gameTaskKernelProtocol,
+} from "./task-kernel-protocol.mjs";
+
 function contains(text, words) {
   return words.some((word) => text.includes(word));
 }
@@ -5,6 +11,10 @@ function contains(text, words) {
 function extractLastNumber(text, fallback) {
   const matches = text.match(/\d+/g);
   return matches && matches.length > 0 ? Number(matches[matches.length - 1]) : fallback;
+}
+
+function safePrompt(prompt) {
+  return String(prompt || "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
 function helloProgram(message) {
@@ -47,6 +57,7 @@ function fastqSourceFiles(analysis = null, fileInfo = null) {
   const averageReadLength = Number(analysis?.metrics?.averageReadLength || 13).toFixed(2);
   const chunkLabel = analysis?.benchmarkPlan?.recommendedChunkSizes?.[0] || "8 MB";
   const nRatioPercent = (((nBases / (totalBases || 1)) * 100)).toFixed(4);
+
   return [
     {
       path: "cmd/main/main.mbt",
@@ -54,11 +65,15 @@ function fastqSourceFiles(analysis = null, fileInfo = null) {
     },
     {
       path: "cmd/main/fastq_stats.mbt",
-      content: `struct FastqReport {\n  read_count : Int\n  total_bases : Int\n  n_bases : Int\n  gc_bases : Int\n  n_ratio_label : String\n  average_read_length_label : String\n}\n\nfn build_report() -> FastqReport {\n  {\n    read_count: ${readCount},\n    total_bases: ${totalBases},\n    n_bases: ${nBases},\n    gc_bases: ${gcBases},\n    n_ratio_label: "${nRatioPercent}%",\n    average_read_length_label: "${averageReadLength}",\n  }\n}`,
+      content: `struct FastqReport {\n  read_count : Int\n  total_bases : Int\n  n_bases : Int\n  gc_bases : Int\n  n_ratio_label : String\n  average_read_length_label : String\n}\n\npub fn build_report() -> FastqReport {\n  {\n    read_count: ${readCount},\n    total_bases: ${totalBases},\n    n_bases: ${nBases},\n    gc_bases: ${gcBases},\n    n_ratio_label: "${nRatioPercent}%",\n    average_read_length_label: "${averageReadLength}",\n  }\n}`,
     },
     {
       path: "cmd/main/fastq_chunking.mbt",
-      content: `fn recommended_chunk_label() -> String {\n  "${chunkLabel}"\n}`,
+      content: `pub fn recommended_chunk_label() -> String {\n  "${chunkLabel}"\n}`,
+    },
+    {
+      path: "cmd/main/fastq_wasm_runtime.mbt",
+      content: `pub fn is_n_base(code : Int) -> Int {\n  if code == 78 || code == 110 {\n    1\n  } else {\n    0\n  }\n}\n\npub fn is_gc_base(code : Int) -> Int {\n  if code == 71 || code == 103 || code == 67 || code == 99 {\n    1\n  } else {\n    0\n  }\n}\n\npub fn is_sequence_line(line_index : Int) -> Int {\n  if line_index % 4 == 1 {\n    1\n  } else {\n    0\n  }\n}\n\npub fn is_sequence_state(state : Int) -> Int {\n  if state == 1 {\n    1\n  } else {\n    0\n  }\n}\n\npub fn next_fastq_state(state : Int) -> Int {\n  (state + 1) % 4\n}\n\npub fn accumulate_read_count(total : Int, state : Int) -> Int {\n  total + is_sequence_state(state)\n}\n\npub fn accumulate_total_bases(total : Int, code : Int) -> Int {\n  if code == 10 || code == 13 {\n    total\n  } else {\n    total + 1\n  }\n}\n\npub fn accumulate_n_bases(total : Int, code : Int) -> Int {\n  total + is_n_base(code)\n}\n\npub fn accumulate_gc_bases(total : Int, code : Int) -> Int {\n  total + is_gc_base(code)\n}\n\npub fn update_longest_read(current : Int, read_length : Int) -> Int {\n  if read_length > current {\n    read_length\n  } else {\n    current\n  }\n}\n\npub fn update_shortest_read(current : Int, read_length : Int) -> Int {\n  if current == 0 || read_length < current {\n    read_length\n  } else {\n    current\n  }\n}`,
     },
   ];
 }
@@ -97,7 +112,7 @@ function workflowSourceFiles(prompt) {
   ];
 }
 
-function buildProjectManifest({ packageName, entrypoint, projectFiles, skills, verificationGate }) {
+function buildProjectManifest({ packageName, entrypoint, projectFiles, skills, verificationGate, taskKernelProtocol = null }) {
   return {
     packageName,
     entrypoint,
@@ -105,6 +120,7 @@ function buildProjectManifest({ packageName, entrypoint, projectFiles, skills, v
     projectFiles,
     skills,
     verificationGate,
+    taskKernelProtocol,
   };
 }
 
@@ -156,11 +172,13 @@ function fastqManifest() {
       { path: "cmd/main/main.mbt", purpose: "browser entrypoint and reporting", language: "moonbit", generated: true },
       { path: "cmd/main/fastq_stats.mbt", purpose: "N-base counting and ratio summarization", language: "moonbit", generated: true },
       { path: "cmd/main/fastq_chunking.mbt", purpose: "chunk sizing guidance for local GB-scale analysis", language: "moonbit", generated: true },
+      { path: "cmd/main/fastq_wasm_runtime.mbt", purpose: "Wasm-exported FastQ state machine and byte classification helpers", language: "moonbit", generated: true },
     ],
     skills: [
       { name: "fastq-n-ratio", category: "bioinformatics", summary: "Counts N bases and computes their ratio over all observed bases.", reusable: true },
       { name: "chunk-stream-reader", category: "runtime", summary: "Streams local text data in chunks so GB-level files stay browser-friendly.", reusable: true },
     ],
+    taskKernelProtocol: fastqTaskKernelProtocol(),
     verificationGate: [
       ...baseVerificationGate(),
       {
@@ -188,6 +206,7 @@ function gameManifest() {
       { name: "browser-dodge-loop", category: "gameplay", summary: "Provides a small dodge-loop suitable for browser rendering shells.", reusable: true },
       { name: "wasm-ui-bridge", category: "runtime", summary: "Connects MoonBit gameplay logic to browser-side drawing code.", reusable: true },
     ],
+    taskKernelProtocol: gameTaskKernelProtocol(),
     verificationGate: [
       ...baseVerificationGate(),
       {
@@ -215,6 +234,7 @@ function workflowManifest() {
       { name: "task-spec-normalizer", category: "agent", summary: "Turns natural language requests into typed synthesis tasks.", reusable: true },
       { name: "context-json-store", category: "agent", summary: "Stores multi-turn state in MoonBit-friendly JSON structures.", reusable: true },
     ],
+    taskKernelProtocol: workflowTaskKernelProtocol(),
     verificationGate: [
       ...baseVerificationGate(),
       {
@@ -234,11 +254,8 @@ function attachSynthesisMetadata(baseArtifact, manifest, benchmarkProfile) {
     skills: manifest.skills,
     verificationGate: manifest.verificationGate,
     benchmarkProfile,
+    taskKernelProtocol: manifest.taskKernelProtocol || null,
   };
-}
-
-function safePrompt(prompt) {
-  return prompt.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
 export function generateMockChatReply(prompt, context = {}) {
@@ -289,7 +306,7 @@ export function generateMockMoonBit(prompt, context = {}) {
   const analysis = context.analysis || null;
   const selectedMode = context.selectedMode || "chat";
 
-  if (selectedMode === "game-agent" || contains(normalized, ["game", "С��Ϸ", "canvas", "arcade"])) {
+  if (selectedMode === "game-agent" || contains(normalized, ["game", "小游戏", "canvas", "arcade"])) {
     const sourceFiles = gameSourceFiles();
     return attachSynthesisMetadata({
       title: "Browser Mini-Game Core",
@@ -327,9 +344,10 @@ export function generateMockMoonBit(prompt, context = {}) {
     const sourceFiles = fastqSourceFiles(analysis, fileInfo);
     return attachSynthesisMetadata({
       title: "FastQ N Base Analyzer Demo",
-      summary: "Generated a MoonBit demo program that shows the core counting logic for N bases.",
+      summary: "Generated a MoonBit demo program that shows the core counting logic for N bases and exposes Wasm helpers for browser-side verification.",
       moonbitCode: fastqDemoProgram(analysis, fileInfo),
       sourceFiles,
+      wasmExports: ["is_n_base", "is_gc_base", "is_sequence_line", "is_sequence_state", "next_fastq_state", "accumulate_read_count", "accumulate_total_bases", "accumulate_n_bases", "accumulate_gc_bases", "update_longest_read", "update_shortest_read"],
     }, fastqManifest(), buildBenchmarkProfile({
       scenario: "FastQ local analysis",
       fileInfo,
@@ -407,4 +425,10 @@ export function generateMockMoonBit(prompt, context = {}) {
     analysis,
   }));
 }
+
+
+
+
+
+
 
