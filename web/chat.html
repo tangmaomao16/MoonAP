@@ -92,12 +92,19 @@
             <span>Local File Path</span>
             <input id="file-path-input" type="text" placeholder="C:\data\sample.fastq" />
           </label>
+          <label class="field">
+            <span>Browser Local File</span>
+            <input id="browser-file-input" type="file" accept=".fastq,.fq,.txt" />
+          </label>
           <div class="button-row">
             <button id="inspect-file-button" class="ghost-button" type="button">Inspect File</button>
             <button id="analyze-file-button" class="ghost-button" type="button">Analyze</button>
+            <button id="analyze-browser-file-button" class="ghost-button" type="button">Analyze In Browser</button>
+            <button id="build-browser-wasm-button" class="ghost-button" type="button">Build Wasm Report</button>
             <button id="clear-file-button" class="ghost-button" type="button">Clear</button>
           </div>
           <div id="file-summary" class="file-summary">No local file attached.</div>
+          <div id="browser-file-summary" class="file-summary">No browser-local file selected.</div>
         </section>
       </aside>
 

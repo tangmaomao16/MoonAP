@@ -5,6 +5,7 @@ import { spawn } from "node:child_process";
 import { PORT, ROOT_DIR } from "./lib/config.mjs";
 import { generateMoonAPResponse } from "./lib/chat-engine-v3.mjs";
 import { analyzeLocalFile, inspectLocalFile } from "./lib/local-file-service.mjs";
+import { generateMockChatReply, generateMockMoonBit } from "./lib/mock-v3.mjs";
 import { compileMoonBitToWasm } from "./lib/moonbit-compiler.mjs";
 
 const WEB_ROOT = path.join(ROOT_DIR, "web");
@@ -197,6 +198,61 @@ const server = http.createServer(async (request, response) => {
         requestedAnalysis,
       });
       sendJson(response, 200, { ok: true, fileInfo, analysis });
+    } catch (error) {
+      sendJson(response, 500, {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && request.url === "/api/browser-analysis/artifact") {
+    try {
+      const body = await readJsonBody(request);
+      const prompt = String(body.prompt || "").trim() || "Generate a MoonBit FastQ analysis report.";
+      const browserAnalysis = body.analysis && typeof body.analysis === "object" ? body.analysis : null;
+      const browserFile = body.browserFile && typeof body.browserFile === "object" ? body.browserFile : null;
+
+      if (!browserAnalysis || !browserFile) {
+        sendJson(response, 400, { ok: false, error: "analysis and browserFile are required" });
+        return;
+      }
+
+      const fileInfo = {
+        path: browserFile.name || "browser-local.fastq",
+        sizeBytes: Number(browserFile.size || 0),
+        detectedType: "fastq",
+      };
+
+      const artifact = {
+        ...generateMockMoonBit(prompt, {
+          selectedMode: "fastq-agent",
+          fileInfo,
+          analysis: browserAnalysis,
+        }),
+        adapter: "browser-local-fastq",
+      };
+      const compiled = await compileMoonBitToWasm(artifact);
+
+      sendJson(response, 200, {
+        ok: true,
+        assistant: {
+          role: "assistant",
+          content: generateMockChatReply(prompt, {
+            fileInfo,
+            analysis: browserAnalysis,
+            selectedMode: "fastq-agent",
+            artifact,
+          }),
+        },
+        analysis: browserAnalysis,
+        artifact: {
+          ...artifact,
+          wasmBase64: compiled.wasmBase64,
+          buildLog: compiled.buildLog,
+        },
+      });
     } catch (error) {
       sendJson(response, 500, {
         ok: false,

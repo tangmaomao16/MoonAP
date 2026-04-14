@@ -4,6 +4,8 @@ const promptInput = document.getElementById("prompt-input");
 const sendButton = document.getElementById("send-button");
 const inspectFileButton = document.getElementById("inspect-file-button");
 const analyzeFileButton = document.getElementById("analyze-file-button");
+const analyzeBrowserFileButton = document.getElementById("analyze-browser-file-button");
+const buildBrowserWasmButton = document.getElementById("build-browser-wasm-button");
 const clearFileButton = document.getElementById("clear-file-button");
 const saveSettingsButton = document.getElementById("save-llm-settings");
 const runButton = document.getElementById("run-button");
@@ -11,7 +13,9 @@ const seedChatButton = document.getElementById("seed-chat");
 const seedAnalysisButton = document.getElementById("seed-analysis");
 const seedGameButton = document.getElementById("seed-game");
 const filePathInput = document.getElementById("file-path-input");
+const browserFileInput = document.getElementById("browser-file-input");
 const fileSummary = document.getElementById("file-summary");
+const browserFileSummary = document.getElementById("browser-file-summary");
 const analysisOutput = document.getElementById("analysis-output");
 const codeOutput = document.getElementById("code-output");
 const sourceFilesOutput = document.getElementById("source-files-output");
@@ -86,6 +90,8 @@ const LLM_PRESETS = {
 let history = [];
 let latestWasmBase64 = "";
 let currentFileInfo = null;
+let currentBrowserFile = null;
+let latestBrowserAnalysis = null;
 let selectedMode = localStorage.getItem("moonap.selectedMode") || "chat";
 
 function addMessage(role, content) {
@@ -155,6 +161,20 @@ function renderFileInfo(fileInfo) {
     `<p><strong>Size:</strong> ${fileInfo.sizeBytes} bytes</p>`,
     `<p><strong>Preview:</strong></p>`,
     `<pre>${fileInfo.previewLines.join("\n") || "(empty preview)"}</pre>`,
+  ].join("");
+}
+
+function renderBrowserFileInfo(file) {
+  if (!file) {
+    browserFileSummary.textContent = "No browser-local file selected.";
+    return;
+  }
+
+  browserFileSummary.innerHTML = [
+    `<p><strong>Name:</strong> ${file.name}</p>`,
+    `<p><strong>Type:</strong> ${file.type || "unknown"}</p>`,
+    `<p><strong>Size:</strong> ${file.size} bytes</p>`,
+    `<p><strong>Last Modified:</strong> ${new Date(file.lastModified).toLocaleString()}</p>`,
   ].join("");
 }
 
@@ -247,6 +267,58 @@ function renderBenchmarkReport(report = "") {
   benchmarkReportOutput.textContent = report || "No benchmark report yet.";
 }
 
+function chooseBrowserChunkSizes(sizeBytes) {
+  if (sizeBytes >= 5 * 1024 * 1024 * 1024) {
+    return ["16 MB", "8 MB", "4 MB"];
+  }
+  if (sizeBytes >= 1024 * 1024 * 1024) {
+    return ["8 MB", "16 MB", "4 MB"];
+  }
+  return ["4 MB", "8 MB", "16 MB"];
+}
+
+function chunkLabelToBytes(label) {
+  return Number.parseInt(label, 10) * 1024 * 1024;
+}
+
+function formatPercent(value) {
+  return `${(Number(value || 0) * 100).toFixed(4)}%`;
+}
+
+function buildBrowserBenchmarkReport(file, metrics, chunkSizes, durationMs) {
+  const primaryChunkLabel = chunkSizes[0];
+  const estimatedChunks = Math.ceil(file.size / chunkLabelToBytes(primaryChunkLabel));
+  const throughputMiBPerSecond = durationMs > 0 ? (file.size / (1024 * 1024)) / (durationMs / 1000) : 0;
+
+  return [
+    "MoonAP Browser FastQ Benchmark Report",
+    "====================================",
+    `file = ${file.name}`,
+    `size = ${file.size} bytes`,
+    "",
+    "browser-local metrics",
+    `- reads processed: ${metrics.readCount}`,
+    `- total bases: ${metrics.totalBases}`,
+    `- N ratio: ${formatPercent(metrics.nRatio)}`,
+    `- GC ratio: ${formatPercent(metrics.gcRatio)}`,
+    `- average read length: ${metrics.averageReadLength.toFixed(2)}`,
+    `- longest read: ${metrics.longestRead}`,
+    `- shortest read: ${metrics.shortestRead}`,
+    "",
+    "chunk execution plan",
+    `- primary chunk size: ${primaryChunkLabel}`,
+    `- chunk sweep: ${chunkSizes.join(" / ")}`,
+    `- estimated chunks: ${estimatedChunks}`,
+    `- duration: ${durationMs.toFixed(2)} ms`,
+    `- throughput: ${throughputMiBPerSecond.toFixed(2)} MiB/s`,
+    "",
+    "competition talking points",
+    "- file stays in the browser instead of being uploaded to the server",
+    "- chunk-based reading keeps the workflow ready for much larger FastQ inputs",
+    "- the benchmark report can be compared against MoonBit-generated Wasm analyzers",
+  ].join("\n");
+}
+
 function updatePipeline(step) {
   [pipelineChat, pipelineMoonbit, pipelineBuild, pipelineRun].forEach((node) => {
     node.classList.remove("active", "complete");
@@ -325,6 +397,177 @@ async function analyzeFile() {
       }
     : null);
   return payload.analysis;
+}
+
+async function analyzeBrowserFastqFile(file) {
+  const chunkSizes = chooseBrowserChunkSizes(file.size);
+  const primaryChunkSize = chunkLabelToBytes(chunkSizes[0]);
+  const decoder = new TextDecoder();
+  let offset = 0;
+  let carry = "";
+  let lineIndex = 0;
+  let readCount = 0;
+  let totalBases = 0;
+  let nBases = 0;
+  let gcBases = 0;
+  let longestRead = 0;
+  let shortestRead = Number.MAX_SAFE_INTEGER;
+  const startedAt = performance.now();
+
+  while (offset < file.size) {
+    const nextOffset = Math.min(offset + primaryChunkSize, file.size);
+    const chunk = await file.slice(offset, nextOffset).arrayBuffer();
+    const text = carry + decoder.decode(chunk, { stream: nextOffset < file.size });
+    const lines = text.split(/\r?\n/);
+    carry = lines.pop() || "";
+
+    for (const line of lines) {
+      if (lineIndex % 4 === 1) {
+        const readLength = line.length;
+        readCount += 1;
+        totalBases += readLength;
+        if (readLength > longestRead) {
+          longestRead = readLength;
+        }
+        if (readLength < shortestRead) {
+          shortestRead = readLength;
+        }
+        for (const char of line) {
+          if (char === "N" || char === "n") {
+            nBases += 1;
+          }
+          if (char === "G" || char === "g" || char === "C" || char === "c") {
+            gcBases += 1;
+          }
+        }
+      }
+      lineIndex += 1;
+    }
+
+    offset = nextOffset;
+    analysisOutput.textContent = [
+      "MoonAP is analyzing the browser-local FastQ file...",
+      `progress = ${((offset / file.size) * 100).toFixed(2)}%`,
+      `reads processed = ${readCount}`,
+      `current chunk size = ${chunkSizes[0]}`,
+    ].join("\n");
+  }
+
+  if (carry.length > 0) {
+    if (lineIndex % 4 === 1) {
+      const readLength = carry.length;
+      readCount += 1;
+      totalBases += readLength;
+      if (readLength > longestRead) {
+        longestRead = readLength;
+      }
+      if (readLength < shortestRead) {
+        shortestRead = readLength;
+      }
+      for (const char of carry) {
+        if (char === "N" || char === "n") {
+          nBases += 1;
+        }
+        if (char === "G" || char === "g" || char === "C" || char === "c") {
+          gcBases += 1;
+        }
+      }
+    }
+  }
+
+  const durationMs = performance.now() - startedAt;
+  const metrics = {
+    readCount,
+    totalBases,
+    nBases,
+    gcBases,
+    nRatio: totalBases ? nBases / totalBases : 0,
+    gcRatio: totalBases ? gcBases / totalBases : 0,
+    averageReadLength: readCount ? totalBases / readCount : 0,
+    longestRead,
+    shortestRead: Number.isFinite(shortestRead) ? shortestRead : 0,
+  };
+
+  return {
+    analysisType: "fastq-n-stats",
+    summary: [
+      "Browser-local FastQ analysis completed.",
+      `Reads processed: ${metrics.readCount}`,
+      `Total bases: ${metrics.totalBases}`,
+      `N ratio: ${formatPercent(metrics.nRatio)}`,
+      `GC ratio: ${formatPercent(metrics.gcRatio)}`,
+      `Average read length: ${metrics.averageReadLength.toFixed(2)}`,
+      `Recommended chunk sizes: ${chunkSizes.join(" / ")}`,
+    ].join("\n"),
+    benchmarkProfile: {
+      scenario: "browser-local-fastq-analysis",
+      currentInput: `${file.name} (${file.size} bytes)`,
+      benchmarkTiers: ["0.1 GB", "1 GB", "5 GB"],
+      recommendedChunkSizes: chunkSizes,
+      evaluationFocus: ["memory peak", "chunk throughput", "total runtime", "output correctness"],
+      generatedFileCount: 0,
+      estimatedChunksAtCurrentSize: Math.ceil(file.size / primaryChunkSize),
+      metricsSnapshot: {
+        readCount: metrics.readCount,
+        totalBases: metrics.totalBases,
+        averageReadLength: metrics.averageReadLength,
+        nRatio: metrics.nRatio,
+        gcRatio: metrics.gcRatio,
+      },
+    },
+    benchmarkReport: buildBrowserBenchmarkReport(file, metrics, chunkSizes, durationMs),
+    metrics,
+    benchmarkPlan: {
+      benchmarkTiers: ["0.1 GB", "1 GB", "5 GB"],
+      recommendedChunkSizes: chunkSizes,
+      evaluationFocus: ["memory peak", "chunk throughput", "total runtime", "output correctness"],
+      estimatedChunksAtCurrentSize: Math.ceil(file.size / primaryChunkSize),
+    },
+  };
+}
+
+async function buildWasmFromBrowserAnalysis() {
+  if (!currentBrowserFile || !latestBrowserAnalysis) {
+    throw new Error("Run browser-local FastQ analysis first.");
+  }
+
+  const response = await fetch("/api/browser-analysis/artifact", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      prompt: `Generate a MoonBit FastQ report program for browser-local file ${currentBrowserFile.name}.`,
+      browserFile: {
+        name: currentBrowserFile.name,
+        size: currentBrowserFile.size,
+        lastModified: currentBrowserFile.lastModified,
+      },
+      analysis: latestBrowserAnalysis,
+    }),
+  });
+
+  const payload = await response.json();
+  if (!response.ok || !payload.ok) {
+    throw new Error(payload.error || "Unable to build Wasm artifact from browser analysis.");
+  }
+
+  addMessage("assistant", payload.assistant.content);
+  artifactTitle.textContent = payload.artifact.title;
+  artifactSummary.textContent = payload.artifact.summary;
+  artifactWarning.textContent = payload.artifact.warning || "";
+  codeOutput.textContent = payload.artifact.moonbitCode;
+  renderSourceFiles(payload.artifact.sourceFiles || []);
+  renderVerificationGate(payload.artifact.verificationGate || []);
+  renderProjectManifest(payload.artifact.projectManifest || null);
+  renderBenchmarkProfile(payload.artifact.benchmarkProfile || null);
+  renderBenchmarkReport(payload.analysis?.benchmarkReport || latestBrowserAnalysis.benchmarkReport || "");
+  renderSkills(payload.artifact.skills || []);
+  buildLog.textContent = payload.artifact.buildLog || "moon build finished without extra logs.";
+  latestWasmBase64 = payload.artifact.wasmBase64 || "";
+  runButton.disabled = !latestWasmBase64;
+  runBadge.textContent = latestWasmBase64 ? "wasm: ready" : "wasm: idle";
+  modeBadge.textContent = "mode: browser-analysis-wasm";
+  experienceBadge.textContent = "workflow: browser-local-fastq -> moonbit-wasm";
+  updatePipeline(latestWasmBase64 ? "build" : "artifact");
 }
 
 async function runWasm(wasmBase64) {
@@ -454,6 +697,11 @@ inspectFileButton.addEventListener("click", async () => {
   }
 });
 
+browserFileInput.addEventListener("change", () => {
+  currentBrowserFile = browserFileInput.files?.[0] || null;
+  renderBrowserFileInfo(currentBrowserFile);
+});
+
 analyzeFileButton.addEventListener("click", async () => {
   analyzeFileButton.disabled = true;
   try {
@@ -466,10 +714,51 @@ analyzeFileButton.addEventListener("click", async () => {
   }
 });
 
+analyzeBrowserFileButton.addEventListener("click", async () => {
+  if (!currentBrowserFile) {
+    addMessage("assistant", "Please choose a browser-local FastQ file first.");
+    return;
+  }
+
+  analyzeBrowserFileButton.disabled = true;
+  modeBadge.textContent = "mode: browser-analyzing";
+  try {
+    const result = await analyzeBrowserFastqFile(currentBrowserFile);
+    latestBrowserAnalysis = result;
+    analysisOutput.textContent = result.summary;
+    renderBenchmarkProfile(result.benchmarkProfile);
+    renderBenchmarkReport(result.benchmarkReport);
+    addMessage("assistant", `Browser-local analysis completed for ${currentBrowserFile.name}.\n\n${result.summary}`);
+    modeBadge.textContent = "mode: browser-analysis";
+    experienceBadge.textContent = "workflow: browser-local-fastq";
+  } catch (error) {
+    addMessage("assistant", `Browser-local analysis failed: ${error.message}`);
+    modeBadge.textContent = "mode: error";
+  } finally {
+    analyzeBrowserFileButton.disabled = false;
+  }
+});
+
+buildBrowserWasmButton.addEventListener("click", async () => {
+  buildBrowserWasmButton.disabled = true;
+  try {
+    await buildWasmFromBrowserAnalysis();
+  } catch (error) {
+    addMessage("assistant", `Browser-analysis Wasm build failed: ${error.message}`);
+    modeBadge.textContent = "mode: error";
+  } finally {
+    buildBrowserWasmButton.disabled = false;
+  }
+});
+
 clearFileButton.addEventListener("click", () => {
   filePathInput.value = "";
+  browserFileInput.value = "";
   currentFileInfo = null;
+  currentBrowserFile = null;
+  latestBrowserAnalysis = null;
   renderFileInfo(null);
+  renderBrowserFileInfo(null);
   analysisOutput.textContent = "No local analysis yet.";
   renderBenchmarkProfile(null);
   renderBenchmarkReport("");
@@ -546,6 +835,7 @@ presetButtons.forEach((button) => {
 loadLlmConfig();
 setMode(selectedMode);
 renderFileInfo(null);
+renderBrowserFileInfo(null);
 resetArtifactPanelForChat();
 syncEmptyState();
 refreshHealth();

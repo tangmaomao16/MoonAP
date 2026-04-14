@@ -15,8 +15,15 @@ function sumProgram(limit) {
   return `fn sum_to(n : Int) -> Int {\n  let mut total = 0\n  let mut i = 1\n  while i <= n {\n    total = total + i\n    i = i + 1\n  }\n  total\n}\n\nfn main {\n  let n = ${limit}\n  println("sum(1.." + n.to_string() + ") = " + sum_to(n).to_string())\n}`;
 }
 
-function fastqDemoProgram() {
-  return `struct SequenceStats {\n  total_bases : Int\n  n_bases : Int\n  ratio_label : String\n}\n\nfn count_n_bases(sequence : String) -> Int {\n  let mut total = 0\n  for char in sequence {\n    if char == 'N' || char == 'n' {\n      total = total + 1\n    }\n  }\n  total\n}\n\nfn summarize_sequence(sequence : String) -> SequenceStats {\n  let n_bases = count_n_bases(sequence)\n  {\n    total_bases: sequence.length(),\n    n_bases,\n    ratio_label: n_bases.to_string() + "/" + sequence.length().to_string(),\n  }\n}\n\nfn recommended_chunk_label() -> String {\n  "8 MB"\n}\n\nfn main {\n  let sample = "AATTCCGGNNNNA"\n  let stats = summarize_sequence(sample)\n  println("sample sequence = " + sample)\n  println("total bases = " + stats.total_bases.to_string())\n  println("N bases = " + stats.n_bases.to_string())\n  println("ratio = " + stats.ratio_label)\n  println("recommended chunk = " + recommended_chunk_label())\n}`;
+function fastqDemoProgram(analysis = null, fileInfo = null) {
+  const fileLabel = safePrompt(fileInfo?.path || "browser-local.fastq");
+  const totalBases = analysis?.metrics?.totalBases || 13;
+  const nBases = analysis?.metrics?.nBases || 4;
+  const readCount = analysis?.metrics?.readCount || 1;
+  const averageReadLength = Number(analysis?.metrics?.averageReadLength || 13).toFixed(2);
+  const chunkLabel = analysis?.benchmarkPlan?.recommendedChunkSizes?.[0] || "8 MB";
+  const nRatioPercent = (((nBases / (totalBases || 1)) * 100)).toFixed(4);
+  return `fn format_percent(value : String) -> String {\n  value + "%"\n}\n\nfn main {\n  let file_label = "${fileLabel}"\n  let read_count = ${readCount}\n  let total_bases = ${totalBases}\n  let n_bases = ${nBases}\n  let average_read_length = "${averageReadLength}"\n  let n_ratio = "${nRatioPercent}"\n  println("MoonAP FastQ Wasm report")\n  println("file = " + file_label)\n  println("reads = " + read_count.to_string())\n  println("total bases = " + total_bases.to_string())\n  println("N bases = " + n_bases.to_string())\n  println("N ratio = " + format_percent(n_ratio))\n  println("average read length = " + average_read_length)\n  println("recommended chunk = ${chunkLabel}")\n}`;
 }
 
 function csvDemoProgram() {
@@ -31,19 +38,27 @@ function workflowProgram(prompt) {
   return `fn normalize_request(raw : String) -> String {\n  raw.trim().replace("\\n", " ")\n}\n\nfn session_label(request : String) -> String {\n  "moonap-session:" + request.length().to_string()\n}\n\nfn main {\n  let request = normalize_request("${safePrompt(prompt)}")\n  let session = session_label(request)\n  println("MoonAP MoonBit task")\n  println("request = " + request)\n  println("session = " + session)\n  println("next = compile to WebAssembly and run in the browser")\n}`;
 }
 
-function fastqSourceFiles() {
+function fastqSourceFiles(analysis = null, fileInfo = null) {
+  const fileLabel = safePrompt(fileInfo?.path || "browser-local.fastq");
+  const totalBases = analysis?.metrics?.totalBases || 13;
+  const nBases = analysis?.metrics?.nBases || 4;
+  const gcBases = analysis?.metrics?.gcBases || 2;
+  const readCount = analysis?.metrics?.readCount || 1;
+  const averageReadLength = Number(analysis?.metrics?.averageReadLength || 13).toFixed(2);
+  const chunkLabel = analysis?.benchmarkPlan?.recommendedChunkSizes?.[0] || "8 MB";
+  const nRatioPercent = (((nBases / (totalBases || 1)) * 100)).toFixed(4);
   return [
     {
       path: "cmd/main/main.mbt",
-      content: `fn main {\n  let sample = "AATTCCGGNNNNA"\n  let stats = summarize_sequence(sample)\n  println("sample sequence = " + sample)\n  println("total bases = " + stats.total_bases.to_string())\n  println("N bases = " + stats.n_bases.to_string())\n  println("ratio = " + stats.ratio_label)\n  println("recommended chunk = " + recommended_chunk_label())\n}`,
+      content: `fn main {\n  let report = build_report()\n  println("MoonAP FastQ Wasm report")\n  println("file = ${fileLabel}")\n  println("reads = " + report.read_count.to_string())\n  println("total bases = " + report.total_bases.to_string())\n  println("N bases = " + report.n_bases.to_string())\n  println("GC bases = " + report.gc_bases.to_string())\n  println("N ratio = " + report.n_ratio_label)\n  println("average read length = " + report.average_read_length_label)\n  println("recommended chunk = " + recommended_chunk_label())\n}`,
     },
     {
       path: "cmd/main/fastq_stats.mbt",
-      content: `struct SequenceStats {\n  total_bases : Int\n  n_bases : Int\n  ratio_label : String\n}\n\nfn count_n_bases(sequence : String) -> Int {\n  let mut total = 0\n  for char in sequence {\n    if char == 'N' || char == 'n' {\n      total = total + 1\n    }\n  }\n  total\n}\n\nfn summarize_sequence(sequence : String) -> SequenceStats {\n  let n_bases = count_n_bases(sequence)\n  {\n    total_bases: sequence.length(),\n    n_bases,\n    ratio_label: n_bases.to_string() + "/" + sequence.length().to_string(),\n  }\n}`,
+      content: `struct FastqReport {\n  read_count : Int\n  total_bases : Int\n  n_bases : Int\n  gc_bases : Int\n  n_ratio_label : String\n  average_read_length_label : String\n}\n\nfn build_report() -> FastqReport {\n  {\n    read_count: ${readCount},\n    total_bases: ${totalBases},\n    n_bases: ${nBases},\n    gc_bases: ${gcBases},\n    n_ratio_label: "${nRatioPercent}%",\n    average_read_length_label: "${averageReadLength}",\n  }\n}`,
     },
     {
       path: "cmd/main/fastq_chunking.mbt",
-      content: `fn recommended_chunk_bytes() -> Int {\n  8 * 1024 * 1024\n}\n\nfn recommended_chunk_label() -> String {\n  (recommended_chunk_bytes() / (1024 * 1024)).to_string() + " MB"\n}`,
+      content: `fn recommended_chunk_label() -> String {\n  "${chunkLabel}"\n}`,
     },
   ];
 }
@@ -309,11 +324,11 @@ export function generateMockMoonBit(prompt, context = {}) {
   }
 
   if (analysis?.analysisType === "fastq-n-stats" || contains(normalized, ["fastq", ".fastq", ".fq", "n base"])) {
-    const sourceFiles = fastqSourceFiles();
+    const sourceFiles = fastqSourceFiles(analysis, fileInfo);
     return attachSynthesisMetadata({
       title: "FastQ N Base Analyzer Demo",
       summary: "Generated a MoonBit demo program that shows the core counting logic for N bases.",
-      moonbitCode: fastqDemoProgram(),
+      moonbitCode: fastqDemoProgram(analysis, fileInfo),
       sourceFiles,
     }, fastqManifest(), buildBenchmarkProfile({
       scenario: "FastQ local analysis",
@@ -392,3 +407,4 @@ export function generateMockMoonBit(prompt, context = {}) {
     analysis,
   }));
 }
+

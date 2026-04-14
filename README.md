@@ -65,6 +65,8 @@ In the current prototype, you can:
 - enter your own LLM API settings in the sidebar
 - attach a local file path for inspection
 - inspect or analyze a local file before starting a synthesis chat
+- choose a browser-local FastQ file and run chunk-based analysis without sending the file to the server
+- build a MoonBit Wasm report artifact directly from browser-local FastQ analysis results
 - switch between dedicated task modes
 - let the server generate MoonBit code
 - compile the generated MoonBit code to Wasm
@@ -169,6 +171,8 @@ Already implemented:
 - benchmark panel with current-size chunk estimates and metric snapshots for FastQ analysis
 - FastQ benchmark report for local competition-style evaluation
 - reproducible FastQ benchmark suite with synthetic datasets and Wasm build validation
+- browser-local FastQ chunk analysis path for a true local-first demo
+- browser-local FastQ analysis -> MoonBit Wasm report synthesis mainline
 - automatic MoonBit -> Wasm compilation
 - browser-side Wasm execution
 - MoonBit version display in the UI
