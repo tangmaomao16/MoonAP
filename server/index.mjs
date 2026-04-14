@@ -214,8 +214,8 @@ const server = http.createServer(async (request, response) => {
       const browserAnalysis = body.analysis && typeof body.analysis === "object" ? body.analysis : null;
       const browserFile = body.browserFile && typeof body.browserFile === "object" ? body.browserFile : null;
 
-      if (!browserAnalysis || !browserFile) {
-        sendJson(response, 400, { ok: false, error: "analysis and browserFile are required" });
+      if (!browserFile) {
+        sendJson(response, 400, { ok: false, error: "browserFile is required" });
         return;
       }
 

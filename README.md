@@ -63,11 +63,11 @@ In the current prototype, you can:
 
 - chat with the assistant in the browser in a ChatGPT-style interface
 - enter your own LLM API settings in the sidebar
-- attach a local file path for inspection
-- inspect or analyze a local file before starting a synthesis chat
-- choose a browser-local FastQ file and run chunk-based analysis without sending the file to the server
+- attach a browser-local FastQ file for local-first analysis
+- choose a browser-local FastQ file with the file picker and let MoonBit Wasm analyze it directly in the browser
+- run browser-local FastQ analysis without sending the file contents to the server
 - build a MoonBit Wasm report artifact directly from browser-local FastQ analysis results
-- verify browser-local FastQ metrics with Wasm-exported MoonBit analysis helpers
+- verify that the active FastQ analysis kernel is the generated MoonBit Wasm module
 - switch between dedicated task modes
 - let the server generate MoonBit code
 - compile the generated MoonBit code to Wasm
@@ -87,6 +87,13 @@ Suggested prompts:
 - `Please analyze this FastQ file, count N bases, compute the ratio, and generate a MoonBit demo program.`
 - `Generate a small browser game in MoonBit that can be compiled to WebAssembly.`
 - `Generate a MoonBit tool that reads user intent, tracks context as JSON, and prepares a Wasm-ready task pipeline.`
+
+FastQ sample files for manual testing are available in:
+
+- [FASTQ_SAMPLES.md](/C:/my_work/MoonBit_Competition/GitHub/MoonAP/samples/FASTQ_SAMPLES.md:1)
+- [fastq-small.fastq](/C:/my_work/MoonBit_Competition/GitHub/MoonAP/samples/fastq-small.fastq:1)
+- [fastq-n-heavy.fastq](/C:/my_work/MoonBit_Competition/GitHub/MoonAP/samples/fastq-n-heavy.fastq:1)
+- [fastq-gc-mixed.fastq](/C:/my_work/MoonBit_Competition/GitHub/MoonAP/samples/fastq-gc-mixed.fastq:1)
 
 ## MoonBit Core Entry
 

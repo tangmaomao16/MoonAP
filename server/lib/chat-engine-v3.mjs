@@ -2,6 +2,7 @@ import { resolveModelConfig, useRemoteModel } from "./config.mjs";
 import { analyzeLocalFile, inspectLocalFile } from "./local-file-service.mjs";
 import { generateMockChatReply, generateMockMoonBit } from "./mock-v3.mjs";
 import { generateMoonBitProgram, generateTextReply } from "./openai-compatible-v2.mjs";
+import { getTaskKernelProtocol } from "./task-kernel-protocol.mjs";
 
 function normalizeMode(mode) {
   const value = String(mode || "").trim().toLowerCase();
@@ -15,7 +16,7 @@ function wantsFileAnalysis(prompt, fileInfo) {
   const normalized = prompt.toLowerCase();
   const keywords = [
     "fastq", ".fq", ".fastq", "analy", "count", "ratio", "quality", "csv", "json", "log", "stats", "inspect",
-    "ÎÄ¼þ", "·ÖÎö", "Í³¼Æ", "±ÈÀý", "ÖÊÁ¿", "¼î»ù",
+    "æ–‡ä»¶", "åˆ†æž", "ç»Ÿè®¡", "æ¯”ä¾‹", "è´¨é‡", "ç¢±åŸº",
   ];
   return Boolean(fileInfo) && keywords.some((keyword) => normalized.includes(keyword));
 }
@@ -27,7 +28,7 @@ function wantsFastqAnalysis(prompt, fileInfo) {
     normalized.includes("fastq") ||
     normalized.includes(".fastq") ||
     normalized.includes(".fq") ||
-    normalized.includes("¼î»ù") ||
+    normalized.includes("ç¢±åŸº") ||
     normalized.includes("n base")
   );
 }
@@ -73,16 +74,16 @@ function containsArtifactIntent(normalizedPrompt) {
     "webassembly",
     "wasm",
     "game",
-    "Ð¡ÓÎÏ·",
+    "å°æ¸¸æˆ",
     "generate code",
-    "Éú³É´úÂë",
+    "ç”Ÿæˆä»£ç ",
     "compile",
-    "±àÒë",
+    "ç¼–è¯‘",
   ];
   return keywords.some((keyword) => normalizedPrompt.includes(keyword));
 }
 
-function buildProjectManifest({ packageName, entrypoint, projectFiles, skills, verificationGate }) {
+function buildProjectManifest({ packageName, entrypoint, projectFiles, skills, verificationGate, taskKernelProtocol = null }) {
   return {
     packageName,
     entrypoint,
@@ -90,6 +91,7 @@ function buildProjectManifest({ packageName, entrypoint, projectFiles, skills, v
     projectFiles,
     skills,
     verificationGate,
+    taskKernelProtocol,
   };
 }
 
@@ -146,6 +148,7 @@ function defaultVerificationGate(mode, analysis) {
 
 function synthesisMetadataFor(mode, fileInfo, analysis) {
   const verificationGate = defaultVerificationGate(mode, analysis);
+  const taskKernelProtocol = getTaskKernelProtocol(mode);
 
   if (mode === "game-agent") {
     const projectManifest = buildProjectManifest({
@@ -163,6 +166,7 @@ function synthesisMetadataFor(mode, fileInfo, analysis) {
         { name: "wasm-ui-bridge", category: "runtime", summary: "Connects MoonBit gameplay logic to browser-side drawing code.", reusable: true },
       ],
       verificationGate,
+      taskKernelProtocol,
     });
 
     return {
@@ -193,6 +197,7 @@ function synthesisMetadataFor(mode, fileInfo, analysis) {
         { name: "chunk-stream-reader", category: "runtime", summary: "Streams local text data in chunks so GB-level files stay browser-friendly.", reusable: true },
       ],
       verificationGate,
+      taskKernelProtocol,
     });
 
     return {
@@ -222,6 +227,7 @@ function synthesisMetadataFor(mode, fileInfo, analysis) {
       { name: "context-json-store", category: "agent", summary: "Stores multi-turn state in MoonBit-friendly JSON structures.", reusable: true },
     ],
     verificationGate,
+    taskKernelProtocol,
   });
 
   return {
@@ -241,12 +247,20 @@ function attachSynthesisMetadata(artifact, mode, fileInfo, analysis) {
     return artifact;
   }
 
+  const fallbackMetadata = synthesisMetadataFor(mode, fileInfo, analysis);
   const metadata = artifact.projectManifest
     ? {
-        projectManifest: artifact.projectManifest,
+        projectManifest: {
+          ...fallbackMetadata.projectManifest,
+          ...artifact.projectManifest,
+          taskKernelProtocol:
+            artifact.projectManifest.taskKernelProtocol ||
+            artifact.taskKernelProtocol ||
+            fallbackMetadata.projectManifest.taskKernelProtocol,
+        },
         benchmarkProfile: artifact.benchmarkProfile || null,
       }
-    : synthesisMetadataFor(mode, fileInfo, analysis);
+    : fallbackMetadata;
 
   return {
     ...artifact,
@@ -254,6 +268,7 @@ function attachSynthesisMetadata(artifact, mode, fileInfo, analysis) {
     skills: artifact.skills || metadata.projectManifest.skills,
     verificationGate: artifact.verificationGate || metadata.projectManifest.verificationGate,
     benchmarkProfile: artifact.benchmarkProfile || metadata.benchmarkProfile,
+    taskKernelProtocol: artifact.taskKernelProtocol || metadata.projectManifest.taskKernelProtocol || null,
   };
 }
 
@@ -310,7 +325,12 @@ export async function generateMoonAPResponse({ prompt, history = [], filePath = 
   if (useRemoteModel(resolvedConfig)) {
     try {
       artifact = attachSynthesisMetadata({
-        ...(await generateMoonBitProgram(buildContextPrompt(prompt, fileInfo, analysis, mode), history, resolvedConfig)),
+        ...(await generateMoonBitProgram(
+          buildContextPrompt(prompt, fileInfo, analysis, mode),
+          history,
+          resolvedConfig,
+          getTaskKernelProtocol(mode),
+        )),
         adapter: "openai-compatible",
       }, mode, fileInfo, analysis);
     } catch (error) {

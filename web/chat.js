@@ -2,8 +2,6 @@ const form = document.getElementById("chat-form");
 const messages = document.getElementById("messages");
 const promptInput = document.getElementById("prompt-input");
 const sendButton = document.getElementById("send-button");
-const inspectFileButton = document.getElementById("inspect-file-button");
-const analyzeFileButton = document.getElementById("analyze-file-button");
 const analyzeBrowserFileButton = document.getElementById("analyze-browser-file-button");
 const buildBrowserWasmButton = document.getElementById("build-browser-wasm-button");
 const clearFileButton = document.getElementById("clear-file-button");
@@ -12,9 +10,7 @@ const runButton = document.getElementById("run-button");
 const seedChatButton = document.getElementById("seed-chat");
 const seedAnalysisButton = document.getElementById("seed-analysis");
 const seedGameButton = document.getElementById("seed-game");
-const filePathInput = document.getElementById("file-path-input");
 const browserFileInput = document.getElementById("browser-file-input");
-const fileSummary = document.getElementById("file-summary");
 const browserFileSummary = document.getElementById("browser-file-summary");
 const analysisOutput = document.getElementById("analysis-output");
 const codeOutput = document.getElementById("code-output");
@@ -148,21 +144,6 @@ function setMode(mode) {
   workspaceSubtitle.textContent = details.subtitle;
   composerModeLabel.textContent = details.composer;
   experienceBadge.textContent = `workflow: ${selectedMode}`;
-}
-
-function renderFileInfo(fileInfo) {
-  if (!fileInfo) {
-    fileSummary.textContent = "No local file attached.";
-    return;
-  }
-
-  fileSummary.innerHTML = [
-    `<p><strong>Path:</strong> ${fileInfo.path}</p>`,
-    `<p><strong>Type:</strong> ${fileInfo.detectedType}</p>`,
-    `<p><strong>Size:</strong> ${fileInfo.sizeBytes} bytes</p>`,
-    `<p><strong>Preview:</strong></p>`,
-    `<pre>${fileInfo.previewLines.join("\n") || "(empty preview)"}</pre>`,
-  ].join("");
 }
 
 function renderBrowserFileInfo(file) {
@@ -372,155 +353,22 @@ function updatePipeline(step) {
   }
 }
 
-async function inspectFile() {
-  const path = filePathInput.value.trim();
-  if (!path) throw new Error("Please enter a local file path first.");
-  const response = await fetch("/api/files/inspect", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path }),
-  });
-  const payload = await response.json();
-  if (!response.ok || !payload.ok) throw new Error(payload.error || "Unable to inspect file.");
-  currentFileInfo = payload.fileInfo;
-  renderFileInfo(currentFileInfo);
-}
-
-async function analyzeFile() {
-  const path = filePathInput.value.trim();
-  if (!path) throw new Error("Please enter a local file path first.");
-  const requestedAnalysis = selectedMode === "fastq-agent" ? "fastq-n-stats" : "auto";
-  const response = await fetch("/api/files/analyze", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path, requestedAnalysis }),
-  });
-  const payload = await response.json();
-  if (!response.ok || !payload.ok) throw new Error(payload.error || "Unable to analyze file.");
-  currentFileInfo = payload.fileInfo;
-  renderFileInfo(currentFileInfo);
-  analysisOutput.textContent = payload.analysis.summary;
-  renderBenchmarkReport(payload.analysis.benchmarkReport || "");
-  renderBenchmarkProfile(payload.analysis.benchmarkPlan
-    ? {
-        scenario: payload.analysis.analysisType,
-        currentInput: `${payload.fileInfo.path} (${payload.fileInfo.sizeBytes} bytes)`,
-        benchmarkTiers: payload.analysis.benchmarkPlan.benchmarkTiers,
-        recommendedChunkSizes: payload.analysis.benchmarkPlan.recommendedChunkSizes,
-        evaluationFocus: payload.analysis.benchmarkPlan.evaluationFocus,
-        generatedFileCount: 0,
-        metricsSnapshot: {
-          readCount: payload.analysis.metrics.readCount || 0,
-          totalBases: payload.analysis.metrics.totalBases || 0,
-          averageReadLength: payload.analysis.metrics.averageReadLength || 0,
-          nRatio: payload.analysis.metrics.nRatio || 0,
-          gcRatio: payload.analysis.metrics.gcRatio || 0,
-        },
-        estimatedChunksAtCurrentSize: payload.analysis.benchmarkPlan.estimatedChunksAtCurrentSize || 0,
-      }
-    : null);
-  return payload.analysis;
-}
-
-async function analyzeBrowserFastqFile(file) {
+function createFastqAnalysisFromWasm(file, wasmResult) {
   const chunkSizes = chooseBrowserChunkSizes(file.size);
   const primaryChunkSize = chunkLabelToBytes(chunkSizes[0]);
-  const decoder = new TextDecoder();
-  let offset = 0;
-  let carry = "";
-  let lineIndex = 0;
-  let readCount = 0;
-  let totalBases = 0;
-  let nBases = 0;
-  let gcBases = 0;
-  let longestRead = 0;
-  let shortestRead = Number.MAX_SAFE_INTEGER;
-  const startedAt = performance.now();
-
-  while (offset < file.size) {
-    const nextOffset = Math.min(offset + primaryChunkSize, file.size);
-    const chunk = await file.slice(offset, nextOffset).arrayBuffer();
-    const text = carry + decoder.decode(chunk, { stream: nextOffset < file.size });
-    const lines = text.split(/\r?\n/);
-    carry = lines.pop() || "";
-
-    for (const line of lines) {
-      if (lineIndex % 4 === 1) {
-        const readLength = line.length;
-        readCount += 1;
-        totalBases += readLength;
-        if (readLength > longestRead) {
-          longestRead = readLength;
-        }
-        if (readLength < shortestRead) {
-          shortestRead = readLength;
-        }
-        for (const char of line) {
-          if (char === "N" || char === "n") {
-            nBases += 1;
-          }
-          if (char === "G" || char === "g" || char === "C" || char === "c") {
-            gcBases += 1;
-          }
-        }
-      }
-      lineIndex += 1;
-    }
-
-    offset = nextOffset;
-    analysisOutput.textContent = [
-      "MoonAP is analyzing the browser-local FastQ file...",
-      `progress = ${((offset / file.size) * 100).toFixed(2)}%`,
-      `reads processed = ${readCount}`,
-      `current chunk size = ${chunkSizes[0]}`,
-    ].join("\n");
-  }
-
-  if (carry.length > 0) {
-    if (lineIndex % 4 === 1) {
-      const readLength = carry.length;
-      readCount += 1;
-      totalBases += readLength;
-      if (readLength > longestRead) {
-        longestRead = readLength;
-      }
-      if (readLength < shortestRead) {
-        shortestRead = readLength;
-      }
-      for (const char of carry) {
-        if (char === "N" || char === "n") {
-          nBases += 1;
-        }
-        if (char === "G" || char === "g" || char === "C" || char === "c") {
-          gcBases += 1;
-        }
-      }
-    }
-  }
-
-  const durationMs = performance.now() - startedAt;
-  const metrics = {
-    readCount,
-    totalBases,
-    nBases,
-    gcBases,
-    nRatio: totalBases ? nBases / totalBases : 0,
-    gcRatio: totalBases ? gcBases / totalBases : 0,
-    averageReadLength: readCount ? totalBases / readCount : 0,
-    longestRead,
-    shortestRead: Number.isFinite(shortestRead) ? shortestRead : 0,
-  };
+  const metrics = wasmResult.metrics;
 
   return {
     analysisType: "fastq-n-stats",
     summary: [
-      "Browser-local FastQ analysis completed.",
+      "MoonBit Wasm FastQ analysis completed.",
       `Reads processed: ${metrics.readCount}`,
       `Total bases: ${metrics.totalBases}`,
       `N ratio: ${formatPercent(metrics.nRatio)}`,
       `GC ratio: ${formatPercent(metrics.gcRatio)}`,
       `Average read length: ${metrics.averageReadLength.toFixed(2)}`,
       `Recommended chunk sizes: ${chunkSizes.join(" / ")}`,
+      `Wasm duration: ${wasmResult.durationMs.toFixed(2)} ms`,
     ].join("\n"),
     benchmarkProfile: {
       scenario: "browser-local-fastq-analysis",
@@ -538,7 +386,7 @@ async function analyzeBrowserFastqFile(file) {
         gcRatio: metrics.gcRatio,
       },
     },
-    benchmarkReport: buildBrowserBenchmarkReport(file, metrics, chunkSizes, durationMs),
+    benchmarkReport: buildBrowserBenchmarkReport(file, metrics, chunkSizes, wasmResult.durationMs),
     metrics,
     benchmarkPlan: {
       benchmarkTiers: ["0.1 GB", "1 GB", "5 GB"],
@@ -549,29 +397,45 @@ async function analyzeBrowserFastqFile(file) {
   };
 }
 
-async function buildWasmFromBrowserAnalysis() {
-  if (!currentBrowserFile || !latestBrowserAnalysis) {
-    throw new Error("Run browser-local FastQ analysis first.");
+async function requestBrowserFastqArtifact(prompt, analysis = null) {
+  if (!currentBrowserFile) {
+    throw new Error("Choose a browser-local FastQ file first.");
   }
 
   const response = await fetch("/api/browser-analysis/artifact", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      prompt: `Generate a MoonBit FastQ report program for browser-local file ${currentBrowserFile.name}.`,
+      prompt,
       browserFile: {
         name: currentBrowserFile.name,
         size: currentBrowserFile.size,
         lastModified: currentBrowserFile.lastModified,
       },
-      analysis: latestBrowserAnalysis,
+      analysis,
     }),
   });
-
   const payload = await response.json();
   if (!response.ok || !payload.ok) {
-    throw new Error(payload.error || "Unable to build Wasm artifact from browser analysis.");
+    throw new Error(payload.error || "Unable to build a browser-local FastQ artifact.");
   }
+  payload.mode = payload.mode || "analysis";
+  payload.experienceMode = payload.experienceMode || "browser-local-fastq";
+  if (payload.artifact) {
+    payload.artifact.adapter = payload.artifact.adapter || "browser-analysis";
+  }
+  return payload;
+}
+
+async function buildWasmFromBrowserAnalysis() {
+  if (!currentBrowserFile || !latestBrowserAnalysis) {
+    throw new Error("Run browser-local FastQ analysis first.");
+  }
+
+  const payload = await requestBrowserFastqArtifact(
+    `Generate a MoonBit FastQ report program for browser-local file ${currentBrowserFile.name}.`,
+    latestBrowserAnalysis,
+  );
 
   addMessage("assistant", payload.assistant.content);
   artifactTitle.textContent = payload.artifact.title;
@@ -592,6 +456,30 @@ async function buildWasmFromBrowserAnalysis() {
   modeBadge.textContent = "mode: browser-analysis-wasm";
   experienceBadge.textContent = "workflow: browser-local-fastq -> moonbit-wasm";
   updatePipeline(latestWasmBase64 ? "build" : "artifact");
+}
+
+async function synthesizeFromBrowserAnalysis(prompt) {
+  if (selectedMode === "fastq-agent") {
+    if (!latestBrowserAnalysis) {
+      throw new Error("Run Analyze In Browser before sending a FastQ request.");
+    }
+    return requestBrowserFastqArtifact(prompt, latestBrowserAnalysis);
+  }
+
+  const response = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: prompt,
+      history,
+      filePath: "",
+      selectedMode,
+      llmConfig: getLlmConfig(),
+    }),
+  });
+  const payload = await response.json();
+  if (!response.ok || !payload.ok) throw new Error(payload.error || "Unknown server error");
+  return payload;
 }
 
 async function runWasm(wasmBase64) {
@@ -731,25 +619,12 @@ function resetArtifactPanelForChat() {
 }
 
 async function sendPrompt(prompt) {
-  const response = await fetch("/api/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      message: prompt,
-      history,
-      filePath: filePathInput.value.trim(),
-      selectedMode,
-      llmConfig: getLlmConfig(),
-    }),
-  });
-  const payload = await response.json();
-  if (!response.ok || !payload.ok) throw new Error(payload.error || "Unknown server error");
+  const payload = await synthesizeFromBrowserAnalysis(prompt);
 
   addMessage("assistant", payload.assistant.content);
   history.push({ role: "user", content: prompt });
   history.push({ role: "assistant", content: payload.assistant.content });
   currentFileInfo = payload.fileInfo || currentFileInfo;
-  renderFileInfo(currentFileInfo);
   modeBadge.textContent = `mode: ${payload.mode || "chat"}`;
   experienceBadge.textContent = `workflow: ${payload.experienceMode || selectedMode}`;
 
@@ -759,7 +634,7 @@ async function sendPrompt(prompt) {
     return;
   }
 
-  adapterBadge.textContent = `adapter: ${payload.artifact.adapter}`;
+  adapterBadge.textContent = `adapter: ${payload.artifact.adapter || "local-artifact"}`;
   analysisOutput.textContent = payload.analysis?.summary || "No local analysis summary.";
   artifactTitle.textContent = payload.artifact.title;
   artifactSummary.textContent = payload.artifact.summary;
@@ -809,33 +684,14 @@ form.addEventListener("submit", async (event) => {
   }
 });
 
-inspectFileButton.addEventListener("click", async () => {
-  inspectFileButton.disabled = true;
-  try {
-    await inspectFile();
-    addMessage("assistant", `Loaded local file context for ${currentFileInfo.path}.`);
-  } catch (error) {
-    addMessage("assistant", `File inspect failed: ${error.message}`);
-  } finally {
-    inspectFileButton.disabled = false;
-  }
-});
-
 browserFileInput.addEventListener("change", () => {
   currentBrowserFile = browserFileInput.files?.[0] || null;
+  latestBrowserAnalysis = null;
+  latestWasmBase64 = "";
   renderBrowserFileInfo(currentBrowserFile);
-});
-
-analyzeFileButton.addEventListener("click", async () => {
-  analyzeFileButton.disabled = true;
-  try {
-    const analysis = await analyzeFile();
-    addMessage("assistant", `Analyzed ${currentFileInfo.path} locally.\n\n${analysis.summary}`);
-  } catch (error) {
-    addMessage("assistant", `File analysis failed: ${error.message}`);
-  } finally {
-    analyzeFileButton.disabled = false;
-  }
+  analysisOutput.textContent = currentBrowserFile
+    ? "Browser-local file selected. Click Analyze In Browser to start MoonBit Wasm analysis."
+    : "No local analysis yet.";
 });
 
 analyzeBrowserFileButton.addEventListener("click", async () => {
@@ -847,14 +703,40 @@ analyzeBrowserFileButton.addEventListener("click", async () => {
   analyzeBrowserFileButton.disabled = true;
   modeBadge.textContent = "mode: browser-analyzing";
   try {
-    const result = await analyzeBrowserFastqFile(currentBrowserFile);
+    analysisOutput.textContent = "MoonAP is compiling a MoonBit Wasm FastQ kernel for browser analysis...";
+    const artifactPayload = await requestBrowserFastqArtifact(
+      `Generate a MoonBit FastQ streaming kernel for browser-local file ${currentBrowserFile.name}.`,
+      null,
+    );
+    artifactTitle.textContent = artifactPayload.artifact.title;
+    artifactSummary.textContent = artifactPayload.artifact.summary;
+    artifactWarning.textContent = artifactPayload.artifact.warning || "";
+    codeOutput.textContent = artifactPayload.artifact.moonbitCode;
+    renderSourceFiles(artifactPayload.artifact.sourceFiles || []);
+    renderVerificationGate(artifactPayload.artifact.verificationGate || []);
+    renderProjectManifest(artifactPayload.artifact.projectManifest || null);
+    renderTaskKernelProtocol(artifactPayload.artifact.taskKernelProtocol || null);
+    renderSkills(artifactPayload.artifact.skills || []);
+    buildLog.textContent = artifactPayload.artifact.buildLog || "moon build finished without extra logs.";
+    latestWasmBase64 = artifactPayload.artifact.wasmBase64 || "";
+    runButton.disabled = !latestWasmBase64;
+    runBadge.textContent = latestWasmBase64 ? "wasm: ready" : "wasm: idle";
+
+    if (!latestWasmBase64) {
+      throw new Error("MoonAP did not receive a Wasm module for FastQ analysis.");
+    }
+
+    analysisOutput.textContent = "MoonBit Wasm kernel ready. Running browser-local FastQ analysis...";
+    const wasmResult = await analyzeBrowserFastqFileWithWasm(currentBrowserFile, latestWasmBase64);
+    const result = createFastqAnalysisFromWasm(currentBrowserFile, wasmResult);
     latestBrowserAnalysis = result;
     analysisOutput.textContent = result.summary;
     renderBenchmarkProfile(result.benchmarkProfile);
     renderBenchmarkReport(result.benchmarkReport);
-    addMessage("assistant", `Browser-local analysis completed for ${currentBrowserFile.name}.\n\n${result.summary}`);
+    addMessage("assistant", `MoonBit Wasm analyzed ${currentBrowserFile.name} in the browser.\n\n${result.summary}`);
     modeBadge.textContent = "mode: browser-analysis";
     experienceBadge.textContent = "workflow: browser-local-fastq";
+    updatePipeline("build");
   } catch (error) {
     addMessage("assistant", `Browser-local analysis failed: ${error.message}`);
     modeBadge.textContent = "mode: error";
@@ -872,7 +754,7 @@ buildBrowserWasmButton.addEventListener("click", async () => {
       analysisOutput.textContent = [
         latestBrowserAnalysis.summary,
         "",
-        "MoonBit Wasm state-machine verification",
+        "MoonBit Wasm report refresh",
         `- reads = ${wasmResult.metrics.readCount}`,
         `- total bases = ${wasmResult.metrics.totalBases}`,
         `- N ratio = ${formatPercent(wasmResult.metrics.nRatio)}`,
@@ -880,12 +762,12 @@ buildBrowserWasmButton.addEventListener("click", async () => {
         `- average read length = ${wasmResult.metrics.averageReadLength.toFixed(2)}`,
         `- Wasm duration = ${wasmResult.durationMs.toFixed(2)} ms`,
         "",
-        "comparison",
-        `- JS baseline N ratio = ${formatPercent(latestBrowserAnalysis.metrics.nRatio)}`,
-        `- Wasm export N ratio = ${formatPercent(wasmResult.metrics.nRatio)}`,
-        `- JS baseline GC ratio = ${formatPercent(latestBrowserAnalysis.metrics.gcRatio)}`,
-        `- Wasm export GC ratio = ${formatPercent(wasmResult.metrics.gcRatio)}`,
-        "- Wasm handled FastQ state progression and accumulation helpers for this pass",
+        "consistency",
+        `- current analysis N ratio = ${formatPercent(latestBrowserAnalysis.metrics.nRatio)}`,
+        `- refreshed Wasm N ratio = ${formatPercent(wasmResult.metrics.nRatio)}`,
+        `- current analysis GC ratio = ${formatPercent(latestBrowserAnalysis.metrics.gcRatio)}`,
+        `- refreshed Wasm GC ratio = ${formatPercent(wasmResult.metrics.gcRatio)}`,
+        "- MoonBit Wasm remains the active FastQ analysis kernel in this workflow",
       ].join("\n");
     }
   } catch (error) {
@@ -897,12 +779,10 @@ buildBrowserWasmButton.addEventListener("click", async () => {
 });
 
 clearFileButton.addEventListener("click", () => {
-  filePathInput.value = "";
   browserFileInput.value = "";
   currentFileInfo = null;
   currentBrowserFile = null;
   latestBrowserAnalysis = null;
-  renderFileInfo(null);
   renderBrowserFileInfo(null);
   analysisOutput.textContent = "No local analysis yet.";
   renderTaskKernelProtocol(null);
@@ -980,7 +860,6 @@ presetButtons.forEach((button) => {
 
 loadLlmConfig();
 setMode(selectedMode);
-renderFileInfo(null);
 renderBrowserFileInfo(null);
 resetArtifactPanelForChat();
 syncEmptyState();
