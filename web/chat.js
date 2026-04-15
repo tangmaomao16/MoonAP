@@ -596,7 +596,9 @@ function updateLlmStatus() {
   llmStatus.textContent = configuredCount
     ? `Router ready: ${readyCount}/${configuredCount} checked model${configuredCount > 1 ? "s" : ""} available`
     : "No checked model has an API key. Built-in SKILLs still work.";
-  llmConfigBadge.textContent = hasRemoteConfig() ? "configured" : "needs setup";
+  if (llmConfigBadge) {
+    llmConfigBadge.textContent = hasRemoteConfig() ? "configured" : "needs setup";
+  }
   syncSurfaceTabs();
   updateApiBanner();
 }
@@ -1307,8 +1309,10 @@ function inferAttachedTaskDescriptor(prompt, file = currentBrowserFile) {
         "main.mbt may print a short analysis banner, but the exported helper functions are mandatory.",
       ].join("\n"),
       validateArtifact: validateFastqArtifactExports,
-      successSummary(fileName, resultSummary) {
-        return `MoonAP generated a FastQ analyzer for ${fileName} and finished browser-local analysis.\n\n${resultSummary}`;
+      successSummary(fileName, result) {
+        return result?.directAnswer
+          ? `${result.directAnswer}\n\nDetails are available in the Results panel.`
+          : `MoonAP finished browser-local analysis for ${fileName}. Details are available in the Results panel.`;
       },
     };
   }
@@ -1411,15 +1415,9 @@ function createFastqAnalysisFromWasm(file, wasmResult) {
 
   return {
     analysisType: "fastq-n-stats",
+    directAnswer: `${metrics.nBases} N bases were found in ${file.name}.`,
     summary: [
-      "MoonBit Wasm FastQ analysis completed.",
-      `Reads processed: ${metrics.readCount}`,
-      `Total bases: ${metrics.totalBases}`,
-      `N ratio: ${formatPercent(metrics.nRatio)}`,
-      `GC ratio: ${formatPercent(metrics.gcRatio)}`,
-      `Average read length: ${metrics.averageReadLength.toFixed(2)}`,
-      `Recommended chunk sizes: ${chunkSizes.join(" / ")}`,
-      `Wasm duration: ${wasmResult.durationMs.toFixed(2)} ms`,
+      `${metrics.nBases} N bases were found in ${file.name}.`,
     ].join("\n"),
     benchmarkProfile: {
       scenario: "browser-local-fastq-analysis",
@@ -1432,6 +1430,8 @@ function createFastqAnalysisFromWasm(file, wasmResult) {
       metricsSnapshot: {
         readCount: metrics.readCount,
         totalBases: metrics.totalBases,
+        nBases: metrics.nBases,
+        gcBases: metrics.gcBases,
         averageReadLength: metrics.averageReadLength,
         nRatio: metrics.nRatio,
         gcRatio: metrics.gcRatio,
@@ -1809,10 +1809,10 @@ async function executeAttachedTaskDescriptor(taskDescriptor, prompt, payload) {
     renderBenchmarkReport(result.benchmarkReport);
     updatePipeline("run-complete");
     showInspector(true);
-    const assistantSummary = taskDescriptor.successSummary(currentBrowserFile.name, result.summary);
-    addMessage("assistant", `${payload.assistant?.content || "MoonAP generated a MoonBit artifact from your prompt."}\n\n${assistantSummary}`);
+    const assistantSummary = taskDescriptor.successSummary(currentBrowserFile.name, result);
+    addMessage("assistant", assistantSummary);
     history.push({ role: "user", content: prompt });
-    history.push({ role: "assistant", content: `${payload.assistant?.content || "MoonAP generated a MoonBit artifact from your prompt."}\n\n${assistantSummary}` });
+    history.push({ role: "assistant", content: assistantSummary });
     setTaskStatus("Task completed. Ready for the next prompt.");
     return;
   }
@@ -2439,7 +2439,7 @@ analyzeBrowserFileButton.addEventListener("click", async () => {
     renderBenchmarkProfile(result.benchmarkProfile);
     renderBenchmarkReport(result.benchmarkReport);
     showInspector(true);
-    addMessage("assistant", `MoonBit Wasm analyzed ${currentBrowserFile.name} in the browser.\n\n${result.summary}`);
+    addMessage("assistant", `${result.directAnswer || `MoonAP analyzed ${currentBrowserFile.name}.`}\n\nDetails are available in the Results panel.`);
     modeBadge.textContent = "mode: browser-analysis";
     experienceBadge.textContent = "workflow: browser-local-fastq";
     updateFastqActionState("analyzed");
@@ -2467,12 +2467,16 @@ analyzeBrowserFileButton.addEventListener("click", async () => {
         "MoonBit Wasm report refresh",
         `- reads = ${wasmResult.metrics.readCount}`,
         `- total bases = ${wasmResult.metrics.totalBases}`,
+        `- N bases = ${wasmResult.metrics.nBases}`,
         `- N ratio = ${formatPercent(wasmResult.metrics.nRatio)}`,
+        `- GC bases = ${wasmResult.metrics.gcBases}`,
         `- GC ratio = ${formatPercent(wasmResult.metrics.gcRatio)}`,
         `- average read length = ${wasmResult.metrics.averageReadLength.toFixed(2)}`,
         `- Wasm duration = ${wasmResult.durationMs.toFixed(2)} ms`,
         "",
         "consistency",
+        `- current analysis N bases = ${latestBrowserAnalysis.metrics.nBases}`,
+        `- refreshed Wasm N bases = ${wasmResult.metrics.nBases}`,
         `- current analysis N ratio = ${formatPercent(latestBrowserAnalysis.metrics.nRatio)}`,
         `- refreshed Wasm N ratio = ${formatPercent(wasmResult.metrics.nRatio)}`,
         `- current analysis GC ratio = ${formatPercent(latestBrowserAnalysis.metrics.gcRatio)}`,
