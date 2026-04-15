@@ -591,6 +591,81 @@ button:disabled {
   padding: 20px;
 }
 
+.preset-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.preset-button {
+  min-height: 68px;
+  padding: 12px;
+  text-align: left;
+}
+
+.preset-button strong,
+.preset-button span {
+  display: block;
+}
+
+.preset-button span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.model-pool {
+  display: grid;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+}
+
+.model-option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 8px;
+  border-radius: 12px;
+}
+
+.model-option:hover {
+  background: var(--accent-soft);
+}
+
+.model-option input {
+  width: auto;
+  margin-top: 3px;
+}
+
+.model-option strong,
+.model-option span {
+  display: block;
+}
+
+.model-option span {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.model-option em {
+  font-style: normal;
+}
+
+.route-ready {
+  color: #0b6b57;
+}
+
+.route-cooling {
+  color: #9a4f12;
+}
+
 .skill-card {
   border: 1px solid var(--line);
   border-radius: 18px;

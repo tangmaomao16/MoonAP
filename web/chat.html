@@ -313,33 +313,37 @@
       <div class="skill-dialog-shell">
         <div class="panel-header">
           <div>
-            <p class="eyebrow">Model</p>
-            <h2>LLM API Settings</h2>
-            <p class="supporting-text">Configure your own OpenAI-compatible cloud LLM for live chat and MoonBit generation.</p>
+            <p class="eyebrow">LLM Router</p>
+            <h2>Connect a Cloud LLM</h2>
+            <p class="supporting-text">Choose a provider, select a model, and save one API key for that provider.</p>
           </div>
           <button id="close-settings-button" class="ghost-button" type="button">Close</button>
         </div>
         <div class="preset-row">
-          <button class="preset-button" type="button" data-preset="gemini3pro">
-            <strong>Gemini 3 Flash</strong>
-            <span>Google Gemini OpenAI-compatible template for MoonAP</span>
+          <button class="preset-button" type="button" data-provider="gemini">
+            <strong>Gemini</strong>
+            <span>Default</span>
           </button>
-          <button class="preset-button" type="button" data-preset="siliconflow">
-            <strong>SiliconFlow DeepSeek</strong>
-            <span>SiliconFlow OpenAI-compatible template for DeepSeek-R1-Distill-Qwen-7B</span>
+          <button class="preset-button" type="button" data-provider="siliconflow">
+            <strong>SiliconFlow</strong>
+            <span>DeepSeek</span>
           </button>
-          <button class="preset-button" type="button" data-preset="glm51">
-            <strong>GLM 5.1</strong>
-            <span>Official Z.AI OpenAI-compatible template for MoonAP</span>
+          <button class="preset-button" type="button" data-provider="zai">
+            <strong>Z.AI</strong>
+            <span>GLM</span>
           </button>
-          <button class="preset-button" type="button" data-preset="openrouter">
+          <button class="preset-button" type="button" data-provider="openrouter">
             <strong>OpenRouter</strong>
-            <span>Use the free router for lightweight testing</span>
+            <span>Fallback</span>
           </button>
         </div>
         <label class="field">
+          <span>Provider</span>
+          <select id="llm-provider"></select>
+        </label>
+        <label class="field">
           <span>Base URL</span>
-          <input id="llm-base-url" type="text" placeholder="https://your-endpoint/v1" />
+          <input id="llm-base-url" type="text" placeholder="https://your-endpoint/v1" readonly />
         </label>
         <label class="field">
           <span>API Key</span>
@@ -347,13 +351,18 @@
         </label>
         <label class="field">
           <span>Model</span>
-          <input id="llm-model" type="text" placeholder="gemini-3-flash-preview" />
+          <select id="llm-model"></select>
         </label>
+        <div class="field">
+          <span>Model rotation</span>
+          <div id="llm-model-pool" class="model-pool"></div>
+          <p class="supporting-text">MoonAP routes across checked models, skips rate-limited routes, and remembers recent failures in this browser.</p>
+        </div>
         <div class="button-row">
           <button id="save-llm-settings" class="primary-button" type="button">Save API Settings</button>
+          <button id="reset-router-health" class="ghost-button" type="button">Reset Router Health</button>
         </div>
         <p id="llm-status" class="supporting-text">Configure a compatible endpoint to unlock real cloud chat and live MoonBit code generation.</p>
-        <span id="llm-config-badge" class="mini-badge">needs setup</span>
       </div>
     </dialog>
 

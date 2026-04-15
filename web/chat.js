@@ -35,9 +35,12 @@ const modeBadge = document.getElementById("mode-badge");
 const adapterBadge = document.getElementById("adapter-badge");
 const runBadge = document.getElementById("run-badge");
 const experienceBadge = document.getElementById("experience-badge");
+const llmProvider = document.getElementById("llm-provider");
 const llmBaseUrl = document.getElementById("llm-base-url");
 const llmApiKey = document.getElementById("llm-api-key");
 const llmModel = document.getElementById("llm-model");
+const llmModelPool = document.getElementById("llm-model-pool");
+const resetRouterHealthButton = document.getElementById("reset-router-health");
 const llmStatus = document.getElementById("llm-status");
 const llmConfigBadge = document.getElementById("llm-config-badge");
 const skillCountBadge = document.getElementById("skill-count-badge");
@@ -109,26 +112,51 @@ const MODE_DETAILS = {
   },
 };
 
-const LLM_PRESETS = {
-  siliconflow: {
-    baseUrl: "https://api.siliconflow.cn/v1",
-    model: "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
-    label: "SiliconFlow preset loaded. Paste your SiliconFlow API key and save settings.",
-  },
-  gemini3pro: {
+const LLM_PROVIDERS = {
+  gemini: {
+    label: "Gemini",
     baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
-    model: "gemini-3-flash-preview",
-    label: "Gemini preset loaded. Paste your Google AI Studio API key and save settings.",
+    defaultModel: "gemini-3-flash-preview",
+    fallbackModels: ["gemini-2.5-flash"],
+    presetLabel: "Gemini provider loaded. Paste your Google AI Studio API key and save settings.",
+    models: [
+      { value: "gemini-3-flash-preview", label: "Gemini 3 Flash", recommended: true, priority: 100 },
+      { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash", priority: 80 },
+      { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", priority: 70 },
+    ],
   },
-  glm51: {
+  siliconflow: {
+    label: "SiliconFlow",
+    baseUrl: "https://api.siliconflow.cn/v1",
+    defaultModel: "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",
+    fallbackModels: ["deepseek-ai/DeepSeek-R1-Distill-Qwen-14B", "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"],
+    presetLabel: "SiliconFlow provider loaded. Paste your SiliconFlow API key and save settings.",
+    models: [
+      { value: "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B", label: "DeepSeek R1 Distill Qwen 32B", recommended: true, priority: 85 },
+      { value: "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B", label: "DeepSeek R1 Distill Qwen 14B", priority: 75 },
+      { value: "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B", label: "DeepSeek R1 Distill Qwen 7B", priority: 60 },
+    ],
+  },
+  zai: {
+    label: "Z.AI / GLM",
     baseUrl: "https://api.z.ai/api/paas/v4/",
-    model: "glm-5.1",
-    label: "GLM 5.1 preset loaded. Paste your Z.AI API key and save settings.",
+    defaultModel: "glm-4.7-flash",
+    fallbackModels: ["glm-5.1"],
+    presetLabel: "Z.AI provider loaded. Paste your Z.AI API key and save settings.",
+    models: [
+      { value: "glm-4.7-flash", label: "GLM 4.7 Flash", recommended: true, priority: 90 },
+      { value: "glm-5.1", label: "GLM 5.1", priority: 88 },
+    ],
   },
   openrouter: {
+    label: "OpenRouter",
     baseUrl: "https://openrouter.ai/api/v1",
-    model: "openrouter/free",
-    label: "OpenRouter preset loaded. Paste your OpenRouter API key and save settings.",
+    defaultModel: "openrouter/free",
+    fallbackModels: [],
+    presetLabel: "OpenRouter provider loaded. Paste your OpenRouter API key and save settings.",
+    models: [
+      { value: "openrouter/free", label: "OpenRouter Free Router", recommended: true, priority: 40 },
+    ],
   },
 };
 
@@ -181,8 +209,7 @@ const BUILTIN_SKILLS = [
 ];
 
 function hasRemoteConfig() {
-  const config = getLlmConfig();
-  return Boolean(config.baseUrl && config.apiKey && config.model);
+  return buildModelRouteCandidates({ includeCooling: true }).length > 0;
 }
 
 function syncSurfaceTabs() {
@@ -535,17 +562,25 @@ function syncEmptyState() {
 }
 
 function getLlmConfig() {
+  const providerKey = String(llmProvider?.value || "gemini").trim();
+  const provider = LLM_PROVIDERS[providerKey] || LLM_PROVIDERS.gemini;
+  const providerKeys = getSavedProviderKeys();
+  const apiKey = llmApiKey.value.trim() || providerKeys[providerKey] || "";
   return {
+    providerKey,
+    providerLabel: provider.label,
     baseUrl: llmBaseUrl.value.trim(),
-    apiKey: llmApiKey.value.trim(),
+    apiKey,
     model: llmModel.value.trim(),
   };
 }
 
 function updateLlmStatus() {
-  llmStatus.textContent = hasRemoteConfig()
-    ? "Cloud chat and MoonBit generation are enabled for this browser."
-    : "No cloud API configured yet. Built-in skills still work, and chat stays in local fallback mode.";
+  const readyCount = buildModelRouteCandidates().length;
+  const configuredCount = buildModelRouteCandidates({ includeCooling: true }).length;
+  llmStatus.textContent = configuredCount
+    ? `Router ready: ${readyCount}/${configuredCount} checked model${configuredCount > 1 ? "s" : ""} available`
+    : "No checked model has an API key. Built-in SKILLs still work.";
   llmConfigBadge.textContent = hasRemoteConfig() ? "configured" : "needs setup";
   syncSurfaceTabs();
   updateApiBanner();
@@ -573,32 +608,308 @@ function renderSkillLibrary() {
   `).join("");
 }
 
+function getSavedProviderKeys() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem("moonap.llm.providerKeys") || "{}");
+    const legacyApiKey = localStorage.getItem("moonap.llm.apiKey") || "";
+    const legacyProvider = localStorage.getItem("moonap.llm.provider") || "gemini";
+    if (legacyApiKey && !parsed[legacyProvider]) {
+      parsed[legacyProvider] = legacyApiKey;
+    }
+    return parsed;
+  } catch {
+    return {};
+  }
+}
+
+function saveProviderKeys(keys) {
+  localStorage.setItem("moonap.llm.providerKeys", JSON.stringify(keys));
+}
+
+function getDefaultModelPool() {
+  return Object.entries(LLM_PROVIDERS).flatMap(([providerKey, provider]) =>
+    provider.models
+      .filter((model) => model.recommended || model.value === provider.defaultModel)
+      .map((model) => `${providerKey}:${model.value}`)
+  );
+}
+
+function getSavedModelPool() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem("moonap.llm.modelPool") || "null");
+    return Array.isArray(parsed) && parsed.length ? parsed : getDefaultModelPool();
+  } catch {
+    return getDefaultModelPool();
+  }
+}
+
+function saveModelPool(values) {
+  localStorage.setItem("moonap.llm.modelPool", JSON.stringify(values));
+}
+
+function getRouterHealth() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem("moonap.llm.routeHealth") || "{}");
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveRouterHealth(health) {
+  localStorage.setItem("moonap.llm.routeHealth", JSON.stringify(health));
+}
+
+function resetRouterHealth() {
+  localStorage.removeItem("moonap.llm.routeHealth");
+  renderModelPool();
+  updateLlmStatus();
+}
+
+function getModelDefinition(providerKey, modelValue) {
+  const provider = LLM_PROVIDERS[providerKey];
+  return provider?.models?.find((model) => model.value === modelValue) || null;
+}
+
+function formatCooldown(ms) {
+  if (ms <= 0) return "";
+  const seconds = Math.ceil(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.ceil(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.ceil(minutes / 60);
+  return `${hours}h`;
+}
+
+function routeHealthLabel(routeKey) {
+  const health = getRouterHealth()[routeKey] || {};
+  const now = Date.now();
+  if (health.rateLimitedUntil && health.rateLimitedUntil > now) {
+    return `cooling ${formatCooldown(health.rateLimitedUntil - now)}`;
+  }
+  if (health.authBlocked) return "check API key";
+  if (health.lastErrorType === "network" && health.coolingUntil && health.coolingUntil > now) {
+    return `network cooldown ${formatCooldown(health.coolingUntil - now)}`;
+  }
+  if (health.lastSuccessAt) return "recently worked";
+  return "ready";
+}
+
+function extractRetryDelayMs(text) {
+  const retryInfo = String(text || "").match(/retryDelay"?\s*:\s*"?(?<seconds>\d+(?:\.\d+)?)s/i);
+  if (retryInfo?.groups?.seconds) {
+    return Math.ceil(Number(retryInfo.groups.seconds) * 1000);
+  }
+  const retryAfter = String(text || "").match(/retry(?:\s+|%20)?(?:in|after)[^\d]*(?<seconds>\d+(?:\.\d+)?)\s*s/i);
+  if (retryAfter?.groups?.seconds) {
+    return Math.ceil(Number(retryAfter.groups.seconds) * 1000);
+  }
+  return 0;
+}
+
+function classifyRemoteError(error) {
+  const status = Number(error?.status || 0);
+  const text = `${error?.message || ""}\n${error?.body || ""}`.toLowerCase();
+  if (status === 401 || status === 403 || /invalid api key|api key not valid|unauthorized|forbidden/.test(text)) {
+    return { type: "auth", cooldownMs: 0 };
+  }
+  if (status === 429 || /resource_exhausted|rate limit|rate-limit|quota|too many requests/.test(text)) {
+    const retryDelay = extractRetryDelayMs(`${error?.message || ""}\n${error?.body || ""}`);
+    const dailyQuota = /per\s*day|daily|permodelperday|requestsperday|inputtokenspermodelperday/.test(text);
+    return { type: "rate_limit", cooldownMs: dailyQuota ? 12 * 60 * 60 * 1000 : retryDelay || 60 * 60 * 1000 };
+  }
+  if (/fetch failed|failed to fetch|networkerror|network error|cors/.test(text)) {
+    return { type: "network", cooldownMs: 2 * 60 * 1000 };
+  }
+  if (/empty response|json|response_format/.test(text)) {
+    return { type: "format", cooldownMs: 30 * 1000 };
+  }
+  return { type: "unknown", cooldownMs: 30 * 1000 };
+}
+
+function recordRouteSuccess(candidate) {
+  const health = getRouterHealth();
+  health[candidate.routeKey] = {
+    ...(health[candidate.routeKey] || {}),
+    consecutiveFailures: 0,
+    lastErrorType: "",
+    lastSuccessAt: Date.now(),
+    rateLimitedUntil: 0,
+    coolingUntil: 0,
+    authBlocked: false,
+  };
+  saveRouterHealth(health);
+  renderModelPool();
+  updateLlmStatus();
+}
+
+function recordRouteFailure(candidate, error) {
+  const health = getRouterHealth();
+  const current = health[candidate.routeKey] || {};
+  const classified = classifyRemoteError(error);
+  const failures = Number(current.consecutiveFailures || 0) + 1;
+  const cooldownMultiplier = Math.min(8, Math.max(1, failures));
+  const cooldownMs = classified.cooldownMs * cooldownMultiplier;
+  const next = {
+    ...current,
+    consecutiveFailures: failures,
+    lastErrorType: classified.type,
+    lastFailureAt: Date.now(),
+  };
+  if (classified.type === "rate_limit") {
+    next.rateLimitedUntil = Date.now() + cooldownMs;
+  } else if (classified.type === "auth") {
+    next.authBlocked = true;
+  } else if (cooldownMs > 0) {
+    next.coolingUntil = Date.now() + cooldownMs;
+  }
+  health[candidate.routeKey] = next;
+  saveRouterHealth(health);
+  renderModelPool();
+  updateLlmStatus();
+  return { ...classified, cooldownMs };
+}
+
+function populateProviderOptions() {
+  llmProvider.innerHTML = Object.entries(LLM_PROVIDERS)
+    .map(([key, provider]) => `<option value="${key}">${provider.label}</option>`)
+    .join("");
+}
+
+function populateModelOptions(providerKey, selectedModel = "") {
+  const provider = LLM_PROVIDERS[providerKey] || LLM_PROVIDERS.gemini;
+  llmModel.innerHTML = provider.models
+    .map((model) => `<option value="${model.value}">${model.label}</option>`)
+    .join("");
+  llmModel.value = provider.models.some((model) => model.value === selectedModel)
+    ? selectedModel
+    : provider.defaultModel;
+}
+
+function renderModelPool() {
+  const checked = new Set(getSavedModelPool());
+  const health = getRouterHealth();
+  llmModelPool.innerHTML = Object.entries(LLM_PROVIDERS).map(([providerKey, provider]) => {
+    const models = provider.models.map((model) => {
+      const value = `${providerKey}:${model.value}`;
+      const selected = checked.has(value) ? "checked" : "";
+      const badge = model.recommended ? "recommended" : "optional";
+      const status = routeHealthLabel(value);
+      const statusClass = status === "ready" || status === "recently worked" ? "route-ready" : "route-cooling";
+      const failureCount = Number(health[value]?.consecutiveFailures || 0);
+      const suffix = failureCount ? `, failures ${failureCount}` : "";
+      return `
+        <label class="model-option">
+          <input type="checkbox" value="${value}" ${selected} />
+          <span>
+            <strong>${provider.label} / ${model.label}</strong>
+            <span>${badge} · <em class="${statusClass}">${status}${suffix}</em></span>
+          </span>
+        </label>
+      `;
+    }).join("");
+    return models;
+  }).join("");
+}
+
+function getCheckedModelPoolValues() {
+  if (!llmModelPool) {
+    return getSavedModelPool();
+  }
+  const liveChecked = Array.from(llmModelPool.querySelectorAll("input[type='checkbox']:checked"))
+    .map((input) => input.value);
+  return liveChecked.length ? liveChecked : getSavedModelPool();
+}
+
+function buildModelRouteCandidates(options = {}) {
+  const includeCooling = Boolean(options.includeCooling);
+  const savedKeys = getSavedProviderKeys();
+  const currentConfig = getLlmConfig();
+  const checkedValues = getCheckedModelPoolValues();
+  const health = getRouterHealth();
+  const now = Date.now();
+  const candidates = [];
+
+  const addCandidate = (providerKey, model) => {
+    const provider = LLM_PROVIDERS[providerKey];
+    const modelDef = getModelDefinition(providerKey, model);
+    const apiKey = providerKey === currentConfig.providerKey
+      ? currentConfig.apiKey
+      : savedKeys[providerKey] || "";
+    if (!provider || !model || !apiKey) return;
+    const key = `${providerKey}:${model}`;
+    if (candidates.some((item) => item.routeKey === key)) return;
+    const routeHealth = health[key] || {};
+    const coolingUntil = Math.max(Number(routeHealth.rateLimitedUntil || 0), Number(routeHealth.coolingUntil || 0));
+    const isCooling = coolingUntil > now || Boolean(routeHealth.authBlocked);
+    if (isCooling && !includeCooling) return;
+    const successBonus = routeHealth.lastSuccessAt ? 8 : 0;
+    const currentBonus = providerKey === currentConfig.providerKey && model === currentConfig.model ? 5 : 0;
+    const failurePenalty = Number(routeHealth.consecutiveFailures || 0) * 12;
+    candidates.push({
+      routeKey: key,
+      providerKey,
+      providerLabel: provider.label,
+      baseUrl: provider.baseUrl,
+      apiKey,
+      model,
+      health: routeHealth,
+      coolingUntil,
+      isCooling,
+      score: Number(modelDef?.priority || 50) + successBonus + currentBonus - failurePenalty,
+    });
+  };
+
+  addCandidate(currentConfig.providerKey, currentConfig.model);
+  for (const value of checkedValues) {
+    const separator = value.indexOf(":");
+    if (separator <= 0) continue;
+    addCandidate(value.slice(0, separator), value.slice(separator + 1));
+  }
+
+  return candidates.sort((a, b) => b.score - a.score);
+}
+
+function syncProviderForm(providerKey, options = {}) {
+  const provider = LLM_PROVIDERS[providerKey] || LLM_PROVIDERS.gemini;
+  const savedKeys = getSavedProviderKeys();
+  llmProvider.value = providerKey;
+  llmBaseUrl.value = provider.baseUrl;
+  populateModelOptions(providerKey, options.model || llmModel.value || provider.defaultModel);
+  llmApiKey.value = options.apiKey ?? savedKeys[providerKey] ?? "";
+}
+
 function saveLlmConfig() {
+  const providerKey = llmProvider.value || "gemini";
+  const keys = getSavedProviderKeys();
+  keys[providerKey] = llmApiKey.value;
+  saveProviderKeys(keys);
+  const selectedModels = Array.from(llmModelPool.querySelectorAll("input[type='checkbox']:checked"))
+    .map((input) => input.value);
+  saveModelPool(selectedModels.length ? selectedModels : getDefaultModelPool());
+  localStorage.setItem("moonap.llm.provider", providerKey);
   localStorage.setItem("moonap.llm.baseUrl", llmBaseUrl.value);
   localStorage.setItem("moonap.llm.apiKey", llmApiKey.value);
   localStorage.setItem("moonap.llm.model", llmModel.value);
   updateLlmStatus();
 }
 
-function applyPreset(presetKey, announce = true) {
-  const preset = LLM_PRESETS[presetKey];
-  if (!preset) return;
-  llmBaseUrl.value = preset.baseUrl;
-  llmModel.value = preset.model;
+function applyPreset(providerKey, announce = true) {
+  const provider = LLM_PROVIDERS[providerKey];
+  if (!provider) return;
+  syncProviderForm(providerKey, { model: provider.defaultModel });
   if (announce) {
-    addMessage("assistant", preset.label);
+    addMessage("assistant", provider.presetLabel);
   }
   updateLlmStatus();
 }
 
 function loadLlmConfig() {
-  llmBaseUrl.value = localStorage.getItem("moonap.llm.baseUrl") || "";
-  llmApiKey.value = localStorage.getItem("moonap.llm.apiKey") || "";
-  llmModel.value = localStorage.getItem("moonap.llm.model") || "";
-  if (!llmBaseUrl.value && !llmApiKey.value && !llmModel.value) {
-    applyPreset("gemini3pro", false);
-    return;
-  }
+  populateProviderOptions();
+  const providerKey = localStorage.getItem("moonap.llm.provider") || "gemini";
+  const savedModel = localStorage.getItem("moonap.llm.model") || "";
+  syncProviderForm(providerKey, { model: savedModel });
+  renderModelPool();
   updateLlmStatus();
 }
 
@@ -1254,8 +1565,9 @@ function buildBrowserRemoteSystemPrompt(mode, prompt = "", fileInfo = null, extr
             "- cmd/main/fastq_stats.mbt",
             "- cmd/main/fastq_chunking.mbt",
             "Optionally add cmd/main/fastq_wasm_runtime.mbt when exporting browser helpers.",
-            "The Wasm module must export these functions for browser-local FastQ analysis: is_n_base, is_gc_base, is_sequence_state, next_fastq_state, accumulate_read_count, accumulate_total_bases, accumulate_n_bases, accumulate_gc_bases, update_longest_read, update_shortest_read.",
-            "Keep the exported functions simple and numeric so JavaScript can call them directly from WebAssembly exports.",
+            "Use a minimal browser adapter: export numeric helper functions that JavaScript can call from WebAssembly.",
+            "Recommended helper names: is_n_base, is_gc_base, is_sequence_state, next_fastq_state, accumulate_read_count, accumulate_total_bases, accumulate_n_bases, accumulate_gc_bases, update_longest_read, update_shortest_read.",
+            "Keep helper signatures simple. MoonAP can adapt common 1-argument, 2-argument, or 3-argument numeric helper variants, but the helpers must produce correct results on a small FastQ smoke test.",
           ].join("\n")
         : "Prefer a small multi-file project whose files are actually used by main.mbt.";
 
@@ -1295,8 +1607,8 @@ function buildBrowserRepairPrompt(prompt, artifact, compileError, extraRequireme
     `Original user request:\n${prompt}`,
     `Compiler error:\n${compileError}`,
     "If the error mentions print_string, replace it with a compile-safe output strategy.",
-    "If the error mentions missing FastQ analysis exports, add explicit exported FastQ helper functions for browser analysis.",
-    "For FastQ browser analysis, the Wasm must export: is_n_base, is_gc_base, is_sequence_state, next_fastq_state, accumulate_read_count, accumulate_total_bases, accumulate_n_bases, accumulate_gc_bases, update_longest_read, update_shortest_read.",
+    "If the error mentions FastQ adapter validation, fix the exported helper functions so they compute correct N-base, GC-base, state, and accumulator results.",
+    "For FastQ browser analysis, prefer exporting these numeric helpers: is_n_base, is_gc_base, is_sequence_state, next_fastq_state, accumulate_read_count, accumulate_total_bases, accumulate_n_bases, accumulate_gc_bases, update_longest_read, update_shortest_read.",
     "Use println for normal output.",
     "For file generation tasks, assemble the full file text or JSON bundle and print it once with println.",
     "Avoid deprecated numeric conversion chains and avoid unnecessary randomness.",
@@ -1314,8 +1626,12 @@ async function validateFastqArtifactExports(artifact) {
   }
 
   const module = await instantiateWasmModule(artifact.wasmBase64);
-  const exports = module.instance.exports;
-  const required = [
+  const adapter = createFastqNumericAdapter(module.instance.exports);
+  validateFastqNumericAdapter(adapter);
+}
+
+function getRequiredFastqHelperNames() {
+  return [
     "is_n_base",
     "is_gc_base",
     "is_sequence_state",
@@ -1327,9 +1643,131 @@ async function validateFastqArtifactExports(artifact) {
     "update_longest_read",
     "update_shortest_read",
   ];
-  const missing = required.filter((name) => typeof exports[name] !== "function");
+}
+
+function callByArity(fn, args) {
+  return Number(fn(...args.slice(0, Math.max(0, fn.length || args.length))));
+}
+
+function chooseAccumulatorStrategy(fn, probes) {
+  for (const probe of probes) {
+    try {
+      const cases = probe.cases || [{ args: probe.args, expected: probe.expected }];
+      const matched = cases.every((testCase) => Number(fn(...testCase.args)) === testCase.expected);
+      if (matched) {
+        return probe.argsBuilder;
+      }
+    } catch {
+      // Try the next common helper shape.
+    }
+  }
+  return null;
+}
+
+function chooseNumericStrategy(fn, probes) {
+  return chooseAccumulatorStrategy(fn, probes);
+}
+
+function createFastqNumericAdapter(exports) {
+  const missing = getRequiredFastqHelperNames().filter((name) => typeof exports[name] !== "function");
   if (missing.length) {
-    throw new Error(`The generated Wasm artifact does not expose required FastQ analysis exports: ${missing.join(", ")}`);
+    throw new Error(`FastQ adapter validation failed: missing helper exports: ${missing.join(", ")}`);
+  }
+
+  const nextStateArgs = chooseNumericStrategy(exports.next_fastq_state, [
+    { cases: [{ args: [0, 10], expected: 1 }, { args: [1, 10], expected: 2 }], argsBuilder: (state, lineEndCode) => [state, lineEndCode] },
+    { cases: [{ args: [10, 0], expected: 1 }, { args: [10, 1], expected: 2 }, { args: [65, 1], expected: 1 }], argsBuilder: (state, lineEndCode) => [lineEndCode, state] },
+    { cases: [{ args: [0], expected: 1 }, { args: [1], expected: 2 }], argsBuilder: (state) => [state] },
+  ]);
+  const totalArgs = chooseAccumulatorStrategy(exports.accumulate_total_bases, [
+    { cases: [{ args: [0, 65], expected: 1 }, { args: [0, 10], expected: 0 }], argsBuilder: (current, code) => [current, code] },
+    { cases: [{ args: [0, 1, 65], expected: 1 }, { args: [0, 0, 65], expected: 0 }, { args: [0, 1, 10], expected: 0 }], argsBuilder: (current, code, isSeq) => [current, isSeq, code] },
+    { cases: [{ args: [65, 1, 0], expected: 1 }, { args: [65, 0, 0], expected: 0 }, { args: [10, 1, 0], expected: 0 }], argsBuilder: (current, code, isSeq) => [code, isSeq, current] },
+  ]);
+  const nArgs = chooseAccumulatorStrategy(exports.accumulate_n_bases, [
+    { cases: [{ args: [0, 78], expected: 1 }, { args: [0, 65], expected: 0 }], argsBuilder: (current, code) => [current, code] },
+    { cases: [{ args: [0, 1, 78], expected: 1 }, { args: [0, 1, 65], expected: 0 }, { args: [0, 0, 78], expected: 0 }], argsBuilder: (current, code, isSeq) => [current, isSeq, code] },
+    { cases: [{ args: [0, 1, 1], expected: 1 }, { args: [0, 1, 0], expected: 0 }, { args: [0, 0, 1], expected: 0 }], argsBuilder: (current, code, isSeq, isN) => [current, isSeq, isN] },
+    { cases: [{ args: [78, 1, 0], expected: 1 }, { args: [65, 1, 0], expected: 0 }, { args: [78, 0, 0], expected: 0 }], argsBuilder: (current, code, isSeq) => [code, isSeq, current] },
+  ]);
+  const gcArgs = chooseAccumulatorStrategy(exports.accumulate_gc_bases, [
+    { cases: [{ args: [0, 71], expected: 1 }, { args: [0, 65], expected: 0 }], argsBuilder: (current, code) => [current, code] },
+    { cases: [{ args: [0, 1, 71], expected: 1 }, { args: [0, 1, 65], expected: 0 }, { args: [0, 0, 71], expected: 0 }], argsBuilder: (current, code, isSeq) => [current, isSeq, code] },
+    { cases: [{ args: [0, 1, 1], expected: 1 }, { args: [0, 1, 0], expected: 0 }, { args: [0, 0, 1], expected: 0 }], argsBuilder: (current, code, isSeq, isGc) => [current, isSeq, isGc] },
+    { cases: [{ args: [71, 1, 0], expected: 1 }, { args: [65, 1, 0], expected: 0 }, { args: [71, 0, 0], expected: 0 }], argsBuilder: (current, code, isSeq) => [code, isSeq, current] },
+  ]);
+  const longestArgs = chooseNumericStrategy(exports.update_longest_read, [
+    { cases: [{ args: [10, 12], expected: 12 }, { args: [12, 10], expected: 12 }], argsBuilder: (current, readLength) => [current, readLength] },
+    { cases: [{ args: [12, 10], expected: 12 }, { args: [10, 12], expected: 12 }], argsBuilder: (current, readLength) => [readLength, current] },
+  ]);
+  const shortestArgs = chooseNumericStrategy(exports.update_shortest_read, [
+    { cases: [{ args: [0, 12], expected: 12 }, { args: [10, 12], expected: 10 }, { args: [12, 10], expected: 10 }], argsBuilder: (current, readLength) => [current, readLength] },
+    { cases: [{ args: [12, 0], expected: 12 }, { args: [12, 10], expected: 10 }, { args: [10, 12], expected: 10 }], argsBuilder: (current, readLength) => [readLength, current] },
+  ]);
+
+  if (!nextStateArgs || !totalArgs || !nArgs || !gcArgs || !longestArgs || !shortestArgs) {
+    throw new Error("FastQ adapter validation failed: unsupported accumulator helper signature.");
+  }
+
+  return {
+    isNBase(code) {
+      return Number(exports.is_n_base(code)) === 1 ? 1 : 0;
+    },
+    isGcBase(code) {
+      return Number(exports.is_gc_base(code)) === 1 ? 1 : 0;
+    },
+    isSequenceState(state) {
+      return Number(exports.is_sequence_state(state)) === 1 ? 1 : 0;
+    },
+    nextState(state, lineEndCode = 10) {
+      return Number(exports.next_fastq_state(...nextStateArgs(state, lineEndCode)));
+    },
+    accumulateReadCount(current) {
+      // Read counting is host-stable: MoonAP counts one read for each sequence line it feeds to Wasm.
+      // LLMs vary widely on whether their helper counts header lines, sequence lines, or quality line endings.
+      return current + 1;
+    },
+    accumulateTotalBases(current, code, isSeq = 1) {
+      return Number(exports.accumulate_total_bases(...totalArgs(current, code, isSeq)));
+    },
+    accumulateNBases(current, code, isSeq = 1) {
+      return Number(exports.accumulate_n_bases(...nArgs(current, code, isSeq, this.isNBase(code))));
+    },
+    accumulateGcBases(current, code, isSeq = 1) {
+      return Number(exports.accumulate_gc_bases(...gcArgs(current, code, isSeq, this.isGcBase(code))));
+    },
+    updateLongest(current, readLength) {
+      return Number(exports.update_longest_read(...longestArgs(current, readLength)));
+    },
+    updateShortest(current, readLength) {
+      return Number(exports.update_shortest_read(...shortestArgs(current, readLength)));
+    },
+  };
+}
+
+function validateFastqNumericAdapter(adapter) {
+  const lines = ["@r1", "ANCG", "+", "IIII", "@r2", "NNNN", "+", "JJJJ"];
+  let state = 0;
+  let reads = 0;
+  let total = 0;
+  let nBases = 0;
+  let gcBases = 0;
+
+  for (const line of lines) {
+    if (adapter.isSequenceState(state) === 1) {
+      reads = adapter.accumulateReadCount(reads, state);
+      for (const char of line) {
+        const code = char.charCodeAt(0);
+        total = adapter.accumulateTotalBases(total, code, 1);
+        nBases = adapter.accumulateNBases(nBases, code, 1);
+        gcBases = adapter.accumulateGcBases(gcBases, code, 1);
+      }
+    }
+    state = adapter.nextState(state, 10);
+  }
+
+  if (reads !== 2 || total !== 8 || nBases !== 5 || gcBases !== 2) {
+    throw new Error(`FastQ adapter validation failed: smoke test expected reads=2,total=8,N=5,GC=2 but got reads=${reads},total=${total},N=${nBases},GC=${gcBases}`);
   }
 }
 
@@ -1394,35 +1832,77 @@ async function compileArtifactFromBrowser(prompt, artifact, noFallback = false, 
 }
 
 async function browserCallRemoteModel({ messages, responseFormat = null }) {
-  const llmConfig = getLlmConfig();
-  const baseUrl = String(llmConfig.baseUrl || "").trim().replace(/\/?$/, "/");
-  const response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${llmConfig.apiKey}`,
-    },
-    body: JSON.stringify({
-      model: llmConfig.model,
-      temperature: 0.2,
-      messages,
-      ...(responseFormat ? { response_format: responseFormat } : {}),
-    }),
-  });
+  const candidates = buildModelRouteCandidates();
+  const configuredCandidates = buildModelRouteCandidates({ includeCooling: true });
+  let lastError = null;
 
-  if (!response.ok) {
-    throw new Error(`Browser-side remote request failed: ${response.status} ${await response.text()}`);
+  if (!candidates.length) {
+    if (configuredCandidates.length) {
+      const blocked = configuredCandidates
+        .filter((candidate) => candidate.isCooling)
+        .map((candidate) => `${candidate.providerLabel} / ${candidate.model}: ${routeHealthLabel(candidate.routeKey)}`)
+        .join("; ");
+      throw new Error(`All checked LLM routes are cooling or blocked. ${blocked}`);
+    }
+    throw new Error("No checked LLM model has an API key. Open LLM settings and save a provider key.");
   }
 
-  const payload = await response.json();
-  const content = payload?.choices?.[0]?.message?.content;
-  if (typeof content === "string" && content.trim()) {
-    return content;
+  for (const candidate of configuredCandidates.filter((item) => item.isCooling)) {
+    logProgress(`LLM Router skipped ${candidate.providerLabel} / ${candidate.model}: ${routeHealthLabel(candidate.routeKey)}.`);
   }
-  if (Array.isArray(content)) {
-    return content.map((item) => item?.text || "").join("\n").trim();
+
+  for (const candidate of candidates) {
+    try {
+      const baseUrl = String(candidate.baseUrl || "").trim().replace(/\/?$/, "/");
+      logProgress(`LLM Router trying ${candidate.providerLabel} / ${candidate.model}.`);
+      const response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${candidate.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: candidate.model,
+          temperature: 0.2,
+          messages,
+          ...(responseFormat ? { response_format: responseFormat } : {}),
+        }),
+      });
+
+      if (!response.ok) {
+        const body = await response.text();
+        const error = new Error(`Browser-side remote request failed: ${response.status} ${body}`);
+        error.status = response.status;
+        error.body = body;
+        throw error;
+      }
+
+      const payload = await response.json();
+      const content = payload?.choices?.[0]?.message?.content;
+      if (typeof content === "string" && content.trim()) {
+        recordRouteSuccess(candidate);
+        return content;
+      }
+      if (Array.isArray(content)) {
+        const text = content.map((item) => item?.text || "").join("\n").trim();
+        if (text) {
+          recordRouteSuccess(candidate);
+          return text;
+        }
+      }
+      throw new Error("Browser-side remote model returned an empty response.");
+    } catch (error) {
+      lastError = error;
+      const routeResult = recordRouteFailure(candidate, error);
+      const cooldownLabel = routeResult.cooldownMs ? ` Cooling for ${formatCooldown(routeResult.cooldownMs)}.` : "";
+      logProgress(`LLM Router marked ${candidate.providerLabel} / ${candidate.model} as ${routeResult.type}.${cooldownLabel}`);
+      if (candidate !== candidates[candidates.length - 1]) {
+        logProgress(`LLM Router could not use ${candidate.providerLabel} / ${candidate.model}. Trying the next checked model.`);
+      }
+    }
   }
-  throw new Error("Browser-side remote model returned an empty response.");
+
+  throw lastError || new Error("Browser-side remote model request failed.");
 }
 
 async function requestBrowserRemoteArtifact(prompt, options = {}) {
@@ -1690,24 +2170,8 @@ async function instantiateWasmModule(wasmBase64) {
 
 async function analyzeBrowserFastqFileWithWasm(file, wasmBase64) {
   const module = await instantiateWasmModule(wasmBase64);
-  const exports = module.instance.exports;
-
-  const missing = [
-    "is_n_base",
-    "is_gc_base",
-    "is_sequence_state",
-    "next_fastq_state",
-    "accumulate_read_count",
-    "accumulate_total_bases",
-    "accumulate_n_bases",
-    "accumulate_gc_bases",
-    "update_longest_read",
-    "update_shortest_read",
-  ].filter((name) => typeof exports[name] !== "function");
-
-  if (missing.length) {
-    throw new Error(`The generated Wasm artifact does not expose FastQ analysis functions: ${missing.join(", ")}`);
-  }
+  const adapter = createFastqNumericAdapter(module.instance.exports);
+  validateFastqNumericAdapter(adapter);
 
   const chunkSizes = chooseBrowserChunkSizes(file.size);
   const primaryChunkSize = chunkLabelToBytes(chunkSizes[0]);
@@ -1731,34 +2195,34 @@ async function analyzeBrowserFastqFileWithWasm(file, wasmBase64) {
     carry = lines.pop() || "";
 
     for (const line of lines) {
-      if (Number(exports.is_sequence_state(fastqState)) === 1) {
+      if (adapter.isSequenceState(fastqState) === 1) {
         const readLength = line.length;
-        readCount = Number(exports.accumulate_read_count(readCount, fastqState));
-        longestRead = Number(exports.update_longest_read(longestRead, readLength));
-        shortestRead = Number(exports.update_shortest_read(shortestRead, readLength));
+        readCount = adapter.accumulateReadCount(readCount, fastqState);
+        longestRead = adapter.updateLongest(longestRead, readLength);
+        shortestRead = adapter.updateShortest(shortestRead, readLength);
         for (const char of line) {
           const code = char.charCodeAt(0);
-          totalBases = Number(exports.accumulate_total_bases(totalBases, code));
-          nBases = Number(exports.accumulate_n_bases(nBases, code));
-          gcBases = Number(exports.accumulate_gc_bases(gcBases, code));
+          totalBases = adapter.accumulateTotalBases(totalBases, code, 1);
+          nBases = adapter.accumulateNBases(nBases, code, 1);
+          gcBases = adapter.accumulateGcBases(gcBases, code, 1);
         }
       }
-      fastqState = Number(exports.next_fastq_state(fastqState));
+      fastqState = adapter.nextState(fastqState, 10);
     }
 
     offset = nextOffset;
   }
 
-  if (carry.length > 0 && Number(exports.is_sequence_state(fastqState)) === 1) {
+  if (carry.length > 0 && adapter.isSequenceState(fastqState) === 1) {
     const readLength = carry.length;
-    readCount = Number(exports.accumulate_read_count(readCount, fastqState));
-    longestRead = Number(exports.update_longest_read(longestRead, readLength));
-    shortestRead = Number(exports.update_shortest_read(shortestRead, readLength));
+    readCount = adapter.accumulateReadCount(readCount, fastqState);
+    longestRead = adapter.updateLongest(longestRead, readLength);
+    shortestRead = adapter.updateShortest(shortestRead, readLength);
     for (const char of carry) {
       const code = char.charCodeAt(0);
-      totalBases = Number(exports.accumulate_total_bases(totalBases, code));
-      nBases = Number(exports.accumulate_n_bases(nBases, code));
-      gcBases = Number(exports.accumulate_gc_bases(gcBases, code));
+      totalBases = adapter.accumulateTotalBases(totalBases, code, 1);
+      nBases = adapter.accumulateNBases(nBases, code, 1);
+      gcBases = adapter.accumulateGcBases(gcBases, code, 1);
     }
   }
 
@@ -2036,6 +2500,24 @@ saveSettingsButton.addEventListener("click", () => {
   addMessage("assistant", "Saved the current LLM API settings for this browser.");
 });
 
+llmProvider.addEventListener("change", () => {
+  const providerKey = llmProvider.value || "gemini";
+  syncProviderForm(providerKey, { model: LLM_PROVIDERS[providerKey]?.defaultModel || "" });
+  updateLlmStatus();
+});
+
+llmModelPool.addEventListener("change", () => {
+  const selectedModels = Array.from(llmModelPool.querySelectorAll("input[type='checkbox']:checked"))
+    .map((input) => input.value);
+  saveModelPool(selectedModels.length ? selectedModels : getDefaultModelPool());
+  updateLlmStatus();
+});
+
+resetRouterHealthButton.addEventListener("click", () => {
+  resetRouterHealth();
+  addMessage("assistant", "LLM Router health has been reset for this browser.");
+});
+
 runButton.addEventListener("click", async () => {
   if (!latestWasmBase64) return;
   try {
@@ -2076,7 +2558,7 @@ promptCards.forEach((button) => {
 
 presetButtons.forEach((button) => {
   button.addEventListener("click", () => {
-    applyPreset(button.dataset.preset, true);
+    applyPreset(button.dataset.provider, true);
   });
 });
 
