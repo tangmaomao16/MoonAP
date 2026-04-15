@@ -93,7 +93,10 @@ test "server contract is owned by MoonBit" {
   assert_true(encoded.contains("/api/file-analysis-policy"))
   assert_true(encoded.contains("/api/attachment-runtime-contract"))
   assert_true(encoded.contains("/api/artifact-validation-policy"))
+  assert_true(encoded.contains("/api/codegen-contract"))
+  assert_true(encoded.contains("/api/compiler-plan"))
   assert_true(encoded.contains("/api/chat"))
+  assert_true(encoded.contains("/api/benchmarks/fastq"))
   assert_true(contract.routes.length() >= 10)
   assert_true(contract.adapter_responsibilities.contains("MoonBit compiler process execution"))
   assert_true(contract.migration_order[0].contains("Move all route policy"))
@@ -132,4 +135,17 @@ test "artifact validation policy is owned by MoonBit" {
   assert_true(policy.fastq_compat_exports.contains("accumulate_n_bases"))
   assert_true(policy.max_remote_repair_rounds >= 2)
   assert_true(encoded.contains("Return only strict JSON"))
+}
+
+test "compiler plan is owned by MoonBit" {
+  let plan = @moonap.compiler_plan()
+  let encoded = plan.to_json().stringify()
+  assert_eq(plan.module_name, "moonap_generated/runtime")
+  assert_eq(plan.entry_package, "cmd/main")
+  assert_eq(plan.target, "wasm")
+  assert_true(plan.build_args.contains("build"))
+  assert_true(plan.build_args.contains("--target"))
+  assert_true(plan.wasm_output_path.contains("main.wasm"))
+  assert_true(encoded.contains("__MOONAP_WASM_EXPORTS__"))
+  assert_true(plan.package_dirs_excluded_from_autofill.contains("cmd/main"))
 }

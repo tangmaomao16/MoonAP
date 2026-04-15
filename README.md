@@ -34,8 +34,8 @@ The intended architecture is:
 
 ## Current Repository Layout
 
-- `moonap/`: MoonBit core package and demo agent context model
-- `server/`: Node.js server that handles chat requests, local file inspection, and MoonBit compilation
+- `moonap/`: MoonBit core package, agent policies, compiler plan, and MoonBit-authored server entry
+- `server/`: legacy JS adapter modules used by the MoonBit-authored server for platform I/O, LLM calls, and compiler process execution
 - `web/`: browser UI
 - `samples/`: sample local files for experiments
 
@@ -56,6 +56,20 @@ npm run dev
 Then open:
 
 [http://localhost:3000](http://localhost:3000)
+
+`npm run dev` and `npm start` now launch the MoonBit-authored JS-target server from `moonap/cmd/server_native`.
+
+If port 3000 is already occupied, use:
+
+```powershell
+npm run start:moonbit-server:3001
+```
+
+The previous JS server is still available as a fallback:
+
+```powershell
+npm run start:js-server
+```
 
 ## How To Experience MoonAP
 
@@ -185,6 +199,8 @@ npm run dev
 
 Already implemented:
 
+- MoonBit-authored JS-target server entry as the default `npm run dev` / `npm start` path
+- MoonBit-owned server contract, task router policy, LLM router policy, file analysis policy, artifact validation policy, attachment runtime contract, and compiler plan
 - ChatGPT-style browser interface
 - mode picker for product workflows
 - custom LLM API configuration in the UI
