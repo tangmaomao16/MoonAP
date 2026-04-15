@@ -3,16 +3,16 @@ import { analyzeLocalFile, inspectLocalFile } from "./local-file-service.mjs";
 import { generateMockChatReply, generateMockMoonBit } from "./mock-v3.mjs";
 import { generateMoonBitProgram, generateTextReply } from "./openai-compatible-v2.mjs";
 import { getTaskKernelProtocol } from "./task-kernel-protocol.mjs";
+import { synthesisMetadataFor } from "./synthesis-metadata.mjs";
+import {
+  modeNeedsArtifact as policyModeNeedsArtifact,
+  modeSystemPrompt as policyModeSystemPrompt,
+  normalizeTaskMode,
+  requestedAnalysisFor,
+  wantsFileAnalysis as policyWantsFileAnalysis,
+} from "./task-router-policy.mjs";
 
 const NO_LLM_MARKER = "[No LLM connecting now!]";
-
-function normalizeMode(mode) {
-  const value = String(mode || "").trim().toLowerCase();
-  if (["chat", "moonbit-task", "fastq-agent", "game-agent"].includes(value)) {
-    return value;
-  }
-  return "chat";
-}
 
 function wantsFileAnalysis(prompt, fileInfo) {
   const normalized = prompt.toLowerCase();
@@ -51,7 +51,7 @@ function modeSystemPrompt(mode) {
 function buildContextPrompt(prompt, fileInfo, analysis, mode) {
   const lines = [
     `MoonAP mode: ${mode}`,
-    modeSystemPrompt(mode),
+    policyModeSystemPrompt(mode),
     `User request:\n${prompt}`,
   ];
   if (fileInfo) {
@@ -83,165 +83,6 @@ function containsArtifactIntent(normalizedPrompt) {
     "编译",
   ];
   return keywords.some((keyword) => normalizedPrompt.includes(keyword));
-}
-
-function buildProjectManifest({ packageName, entrypoint, projectFiles, skills, verificationGate, taskKernelProtocol = null }) {
-  return {
-    packageName,
-    entrypoint,
-    runtimeTarget: "wasm",
-    projectFiles,
-    skills,
-    verificationGate,
-    taskKernelProtocol,
-  };
-}
-
-function buildBenchmarkProfile({ scenario, fileInfo, generatedFileCount, chunkSizes, focus }) {
-  return {
-    scenario,
-    currentInput: fileInfo ? `${fileInfo.path} (${fileInfo.sizeBytes} bytes)` : "No local file attached yet",
-    benchmarkTiers: ["0.1 GB", "1 GB", "5 GB"],
-    recommendedChunkSizes: chunkSizes,
-    evaluationFocus: focus,
-    generatedFileCount,
-  };
-}
-
-function defaultVerificationGate(mode, analysis) {
-  const thirdCheck =
-    mode === "fastq-agent" || analysis?.analysisType === "fastq-n-stats"
-      ? {
-          name: "streaming-plan",
-          level: "Formal",
-          passed: true,
-          detail: "MoonAP reserved a formal-proof slot for chunk-safe file analysis while using engineering checks in the current release.",
-        }
-      : mode === "game-agent"
-        ? {
-            name: "runtime-boundary",
-            level: "Contract",
-            passed: true,
-            detail: "The generated Wasm gameplay loop stays inside the browser-safe execution surface.",
-          }
-        : {
-            name: "future-proof-slot",
-            level: "Formal",
-            passed: true,
-            detail: "A future MoonBit formal verification step can be inserted here without changing the rest of the synthesis pipeline.",
-          };
-
-  return [
-    {
-      name: "task-selected",
-      level: "JsonSchema",
-      passed: true,
-      detail: "MoonAP normalized the natural-language request into a typed synthesis task.",
-    },
-    {
-      name: "engineering-gate",
-      level: "Contract",
-      passed: true,
-      detail: "This version uses engineering validation gates today while reserving a future formal verification slot.",
-    },
-    thirdCheck,
-  ];
-}
-
-function synthesisMetadataFor(mode, fileInfo, analysis) {
-  const verificationGate = defaultVerificationGate(mode, analysis);
-  const taskKernelProtocol = getTaskKernelProtocol(mode);
-
-  if (mode === "game-agent") {
-    const projectManifest = buildProjectManifest({
-      packageName: "moonap/browser_game",
-      entrypoint: "cmd/main/main.mbt",
-      projectFiles: [
-        { path: "moon.mod.json", purpose: "module metadata", language: "json", generated: true },
-        { path: "moon.pkg", purpose: "package imports and options", language: "moonpkg", generated: true },
-        { path: "cmd/main/main.mbt", purpose: "browser game entrypoint", language: "moonbit", generated: true },
-        { path: "cmd/main/game_state.mbt", purpose: "gameplay state transitions", language: "moonbit", generated: true },
-        { path: "cmd/main/game_loop.mbt", purpose: "frame summary and loop helpers", language: "moonbit", generated: true },
-      ],
-      skills: [
-        { name: "browser-dodge-loop", category: "gameplay", summary: "Provides a small dodge-loop suitable for browser rendering shells.", reusable: true },
-        { name: "wasm-ui-bridge", category: "runtime", summary: "Connects MoonBit gameplay logic to browser-side drawing code.", reusable: true },
-      ],
-      verificationGate,
-      taskKernelProtocol,
-    });
-
-    return {
-      projectManifest,
-      benchmarkProfile: buildBenchmarkProfile({
-        scenario: "browser mini-game synthesis",
-        fileInfo,
-        generatedFileCount: projectManifest.projectFiles.length - 2,
-        chunkSizes: ["not applicable"],
-        focus: ["gameplay loop stability", "wasm startup time", "browser-safe runtime surface"],
-      }),
-    };
-  }
-
-  if (mode === "fastq-agent" || analysis?.analysisType === "fastq-n-stats" || fileInfo?.detectedType === "fastq") {
-    const projectManifest = buildProjectManifest({
-      packageName: "moonap/fastq_n_ratio",
-      entrypoint: "cmd/main/main.mbt",
-      projectFiles: [
-        { path: "moon.mod.json", purpose: "module metadata", language: "json", generated: true },
-        { path: "moon.pkg", purpose: "package imports and options", language: "moonpkg", generated: true },
-        { path: "cmd/main/main.mbt", purpose: "browser entrypoint and reporting", language: "moonbit", generated: true },
-        { path: "cmd/main/fastq_stats.mbt", purpose: "N-base counting and ratio summarization", language: "moonbit", generated: true },
-        { path: "cmd/main/fastq_chunking.mbt", purpose: "chunk sizing guidance for local GB-scale analysis", language: "moonbit", generated: true },
-      ],
-      skills: [
-        { name: "fastq-n-ratio", category: "bioinformatics", summary: "Counts N bases and computes their ratio over all observed bases.", reusable: true },
-        { name: "chunk-stream-reader", category: "runtime", summary: "Streams local text data in chunks so GB-level files stay browser-friendly.", reusable: true },
-      ],
-      verificationGate,
-      taskKernelProtocol,
-    });
-
-    return {
-      projectManifest,
-      benchmarkProfile: buildBenchmarkProfile({
-        scenario: "FastQ local analysis",
-        fileInfo,
-        generatedFileCount: projectManifest.projectFiles.length - 2,
-        chunkSizes: ["4 MB", "8 MB", "16 MB"],
-        focus: ["memory peak", "chunk throughput", "total runtime", "output correctness"],
-      }),
-    };
-  }
-
-  const projectManifest = buildProjectManifest({
-    packageName: "moonap/workflow_task",
-    entrypoint: "cmd/main/main.mbt",
-    projectFiles: [
-      { path: "moon.mod.json", purpose: "module metadata", language: "json", generated: true },
-      { path: "moon.pkg", purpose: "package imports and options", language: "moonpkg", generated: true },
-      { path: "cmd/main/main.mbt", purpose: "workflow entrypoint", language: "moonbit", generated: true },
-      { path: "cmd/main/agent_spec.mbt", purpose: "task spec normalization", language: "moonbit", generated: true },
-      { path: "cmd/main/session_context.mbt", purpose: "session label and lightweight context tracking", language: "moonbit", generated: true },
-    ],
-    skills: [
-      { name: "task-spec-normalizer", category: "agent", summary: "Turns natural language requests into typed synthesis tasks.", reusable: true },
-      { name: "context-json-store", category: "agent", summary: "Stores multi-turn state in MoonBit-friendly JSON structures.", reusable: true },
-    ],
-    verificationGate,
-    taskKernelProtocol,
-  });
-
-  return {
-    projectManifest,
-    benchmarkProfile: buildBenchmarkProfile({
-      scenario: "MoonBit workflow synthesis",
-      fileInfo,
-      generatedFileCount: projectManifest.projectFiles.length - 2,
-      chunkSizes: ["not applicable"],
-      focus: ["project completeness", "reusable skills", "build success", "explainability"],
-    }),
-  };
 }
 
 function attachSynthesisMetadata(artifact, mode, fileInfo, analysis) {
@@ -297,17 +138,17 @@ function withFallbackWarning(text, warning) {
 
 export async function generateMoonAPResponse({ prompt, history = [], filePath = "", llmConfig = {}, selectedMode = "chat" }) {
   const resolvedConfig = resolveModelConfig(llmConfig);
-  const mode = normalizeMode(selectedMode);
+  const mode = normalizeTaskMode(selectedMode);
   const trimmedPath = String(filePath || "").trim();
   const fileInfo = trimmedPath ? await inspectLocalFile(trimmedPath) : null;
-  const analysisMode = mode === "fastq-agent" ? Boolean(fileInfo) : wantsFileAnalysis(prompt, fileInfo);
-  const artifactMode = analysisMode || modeNeedsArtifact(mode, prompt);
+  const analysisMode = mode === "fastq-agent" ? Boolean(fileInfo) : policyWantsFileAnalysis(prompt, fileInfo);
+  const artifactMode = analysisMode || policyModeNeedsArtifact(mode, prompt);
   let analysis = null;
 
   if (analysisMode && fileInfo) {
     analysis = await analyzeLocalFile({
       filePath: fileInfo.path,
-      requestedAnalysis: wantsFastqAnalysis(prompt, fileInfo) ? "fastq-n-stats" : "auto",
+      requestedAnalysis: requestedAnalysisFor(prompt, fileInfo, mode),
     });
   }
 

@@ -1,8 +1,4 @@
-import {
-  fastqTaskKernelProtocol,
-  workflowTaskKernelProtocol,
-  gameTaskKernelProtocol,
-} from "./task-kernel-protocol.mjs";
+import { synthesisMetadataFor } from "./synthesis-metadata.mjs";
 
 function contains(text, words) {
   return words.some((word) => text.includes(word));
@@ -112,149 +108,17 @@ function workflowSourceFiles(prompt) {
   ];
 }
 
-function buildProjectManifest({ packageName, entrypoint, projectFiles, skills, verificationGate, taskKernelProtocol = null }) {
-  return {
-    packageName,
-    entrypoint,
-    runtimeTarget: "wasm",
-    projectFiles,
-    skills,
-    verificationGate,
-    taskKernelProtocol,
-  };
-}
-
-function baseVerificationGate() {
-  return [
-    {
-      name: "task-selected",
-      level: "JsonSchema",
-      passed: true,
-      detail: "MoonAP normalized the natural-language request into a typed synthesis task.",
-    },
-    {
-      name: "engineering-gate",
-      level: "Contract",
-      passed: true,
-      detail: "This version uses engineering validation gates today while reserving a future formal verification slot.",
-    },
-  ];
-}
-
-function buildBenchmarkProfile({ scenario, fileInfo, generatedFileCount, chunkSizes, focus, analysis = null }) {
-  return {
-    scenario,
-    currentInput: fileInfo ? `${fileInfo.path} (${fileInfo.sizeBytes} bytes)` : "No local file attached yet",
-    benchmarkTiers: analysis?.benchmarkPlan?.benchmarkTiers || ["0.1 GB", "1 GB", "5 GB"],
-    recommendedChunkSizes: analysis?.benchmarkPlan?.recommendedChunkSizes || chunkSizes,
-    evaluationFocus: analysis?.benchmarkPlan?.evaluationFocus || focus,
-    generatedFileCount,
-    metricsSnapshot: analysis?.metrics
-      ? {
-          readCount: analysis.metrics.readCount || 0,
-          totalBases: analysis.metrics.totalBases || 0,
-          averageReadLength: analysis.metrics.averageReadLength || 0,
-          nRatio: analysis.metrics.nRatio || 0,
-          gcRatio: analysis.metrics.gcRatio || 0,
-        }
-      : null,
-    estimatedChunksAtCurrentSize: analysis?.benchmarkPlan?.estimatedChunksAtCurrentSize || 0,
-  };
-}
-
-function fastqManifest() {
-  return buildProjectManifest({
-    packageName: "moonap/fastq_n_ratio",
-    entrypoint: "cmd/main/main.mbt",
-    projectFiles: [
-      { path: "moon.mod.json", purpose: "module metadata", language: "json", generated: true },
-      { path: "moon.pkg", purpose: "package imports and options", language: "moonpkg", generated: true },
-      { path: "cmd/main/main.mbt", purpose: "browser entrypoint and reporting", language: "moonbit", generated: true },
-      { path: "cmd/main/fastq_stats.mbt", purpose: "N-base counting and ratio summarization", language: "moonbit", generated: true },
-      { path: "cmd/main/fastq_chunking.mbt", purpose: "chunk sizing guidance for local GB-scale analysis", language: "moonbit", generated: true },
-      { path: "cmd/main/fastq_wasm_runtime.mbt", purpose: "Wasm-exported FastQ state machine and byte classification helpers", language: "moonbit", generated: true },
-    ],
-    skills: [
-      { name: "fastq-n-ratio", category: "bioinformatics", summary: "Counts N bases and computes their ratio over all observed bases.", reusable: true },
-      { name: "chunk-stream-reader", category: "runtime", summary: "Streams local text data in chunks so GB-level files stay browser-friendly.", reusable: true },
-    ],
-    taskKernelProtocol: fastqTaskKernelProtocol(),
-    verificationGate: [
-      ...baseVerificationGate(),
-      {
-        name: "streaming-plan",
-        level: "Formal",
-        passed: true,
-        detail: "MoonAP reserved a formal-proof slot for chunk-safe analysis logic once the MoonBit verification stack is more stable.",
-      },
-    ],
+function attachSynthesisMetadata(baseArtifact, mode, fileInfo = null, analysis = null) {
+  const metadata = synthesisMetadataFor(mode, fileInfo, analysis, {
+    generatedFileCount: baseArtifact.sourceFiles?.length || null,
   });
-}
-
-function gameManifest() {
-  return buildProjectManifest({
-    packageName: "moonap/browser_game",
-    entrypoint: "cmd/main/main.mbt",
-    projectFiles: [
-      { path: "moon.mod.json", purpose: "module metadata", language: "json", generated: true },
-      { path: "moon.pkg", purpose: "package imports and options", language: "moonpkg", generated: true },
-      { path: "cmd/main/main.mbt", purpose: "browser game entrypoint", language: "moonbit", generated: true },
-      { path: "cmd/main/game_state.mbt", purpose: "gameplay state transitions", language: "moonbit", generated: true },
-      { path: "cmd/main/game_loop.mbt", purpose: "frame summary and loop helpers", language: "moonbit", generated: true },
-    ],
-    skills: [
-      { name: "browser-dodge-loop", category: "gameplay", summary: "Provides a small dodge-loop suitable for browser rendering shells.", reusable: true },
-      { name: "wasm-ui-bridge", category: "runtime", summary: "Connects MoonBit gameplay logic to browser-side drawing code.", reusable: true },
-    ],
-    taskKernelProtocol: gameTaskKernelProtocol(),
-    verificationGate: [
-      ...baseVerificationGate(),
-      {
-        name: "runtime-boundary",
-        level: "Contract",
-        passed: true,
-        detail: "The generated game loop stays inside the browser-safe Wasm execution surface.",
-      },
-    ],
-  });
-}
-
-function workflowManifest() {
-  return buildProjectManifest({
-    packageName: "moonap/workflow_task",
-    entrypoint: "cmd/main/main.mbt",
-    projectFiles: [
-      { path: "moon.mod.json", purpose: "module metadata", language: "json", generated: true },
-      { path: "moon.pkg", purpose: "package imports and options", language: "moonpkg", generated: true },
-      { path: "cmd/main/main.mbt", purpose: "workflow entrypoint", language: "moonbit", generated: true },
-      { path: "cmd/main/agent_spec.mbt", purpose: "task spec normalization", language: "moonbit", generated: true },
-      { path: "cmd/main/session_context.mbt", purpose: "session label and lightweight context tracking", language: "moonbit", generated: true },
-    ],
-    skills: [
-      { name: "task-spec-normalizer", category: "agent", summary: "Turns natural language requests into typed synthesis tasks.", reusable: true },
-      { name: "context-json-store", category: "agent", summary: "Stores multi-turn state in MoonBit-friendly JSON structures.", reusable: true },
-    ],
-    taskKernelProtocol: workflowTaskKernelProtocol(),
-    verificationGate: [
-      ...baseVerificationGate(),
-      {
-        name: "future-proof-slot",
-        level: "Formal",
-        passed: true,
-        detail: "A future MoonBit formal verification step can be inserted here without changing the rest of the synthesis pipeline.",
-      },
-    ],
-  });
-}
-
-function attachSynthesisMetadata(baseArtifact, manifest, benchmarkProfile) {
   return {
     ...baseArtifact,
-    projectManifest: manifest,
-    skills: manifest.skills,
-    verificationGate: manifest.verificationGate,
-    benchmarkProfile,
-    taskKernelProtocol: manifest.taskKernelProtocol || null,
+    projectManifest: metadata.projectManifest,
+    skills: metadata.projectManifest.skills,
+    verificationGate: metadata.projectManifest.verificationGate,
+    benchmarkProfile: metadata.benchmarkProfile,
+    taskKernelProtocol: metadata.projectManifest.taskKernelProtocol || null,
   };
 }
 
@@ -313,14 +177,7 @@ export function generateMockMoonBit(prompt, context = {}) {
       summary: "Generated a MoonBit gameplay core that can act as the logic layer for a browser mini-game compiled to WebAssembly.",
       moonbitCode: gameDemoProgram(),
       sourceFiles,
-    }, gameManifest(), buildBenchmarkProfile({
-      scenario: "browser mini-game synthesis",
-      fileInfo,
-      generatedFileCount: sourceFiles.length,
-      chunkSizes: ["not applicable"],
-      focus: ["gameplay loop stability", "wasm startup time", "browser-safe runtime surface"],
-      analysis,
-    }));
+    }, "game-agent", fileInfo, analysis);
   }
 
   if (selectedMode === "moonbit-task") {
@@ -330,14 +187,7 @@ export function generateMockMoonBit(prompt, context = {}) {
       summary: "Generated a MoonBit-first starter program for the requested task so it can continue into the WebAssembly execution flow.",
       moonbitCode: workflowProgram(prompt),
       sourceFiles,
-    }, workflowManifest(), buildBenchmarkProfile({
-      scenario: "MoonBit workflow synthesis",
-      fileInfo,
-      generatedFileCount: sourceFiles.length,
-      chunkSizes: ["not applicable"],
-      focus: ["project completeness", "reusable skills", "build success", "explainability"],
-      analysis,
-    }));
+    }, "moonbit-task", fileInfo, analysis);
   }
 
   if (analysis?.analysisType === "fastq-n-stats" || contains(normalized, ["fastq", ".fastq", ".fq", "n base"])) {
@@ -348,14 +198,7 @@ export function generateMockMoonBit(prompt, context = {}) {
       moonbitCode: fastqDemoProgram(analysis, fileInfo),
       sourceFiles,
       wasmExports: ["is_n_base", "is_gc_base", "is_sequence_line", "is_sequence_state", "next_fastq_state", "accumulate_read_count", "accumulate_total_bases", "accumulate_n_bases", "accumulate_gc_bases", "update_longest_read", "update_shortest_read"],
-    }, fastqManifest(), buildBenchmarkProfile({
-      scenario: "FastQ local analysis",
-      fileInfo,
-      generatedFileCount: sourceFiles.length,
-      chunkSizes: ["4 MB", "8 MB", "16 MB"],
-      focus: ["memory peak", "chunk throughput", "total runtime", "output correctness"],
-      analysis,
-    }));
+    }, "fastq-agent", fileInfo, analysis);
   }
 
   if (analysis?.analysisType === "csv-summary" || fileInfo?.detectedType === "csv" || contains(normalized, ["csv"])) {
@@ -365,14 +208,7 @@ export function generateMockMoonBit(prompt, context = {}) {
       summary: "Generated a MoonBit demo program that illustrates simple CSV header analysis.",
       moonbitCode: csvDemoProgram(),
       sourceFiles,
-    }, workflowManifest(), buildBenchmarkProfile({
-      scenario: "local structured data analysis",
-      fileInfo,
-      generatedFileCount: sourceFiles.length,
-      chunkSizes: ["4 MB"],
-      focus: ["schema summary accuracy", "build success", "explainability"],
-      analysis,
-    }));
+    }, "moonbit-task", fileInfo, analysis);
   }
 
   if (contains(normalized, ["hello", "greet"])) {
@@ -382,14 +218,7 @@ export function generateMockMoonBit(prompt, context = {}) {
       summary: "Generated a minimal runnable MoonBit program that prints a greeting.",
       moonbitCode: helloProgram("Hello from MoonBit and WebAssembly!"),
       sourceFiles,
-    }, workflowManifest(), buildBenchmarkProfile({
-      scenario: "MoonBit workflow synthesis",
-      fileInfo,
-      generatedFileCount: sourceFiles.length,
-      chunkSizes: ["not applicable"],
-      focus: ["build success", "starter project completeness"],
-      analysis,
-    }));
+    }, "moonbit-task", fileInfo, analysis);
   }
 
   if (contains(normalized, ["sum"])) {
@@ -400,14 +229,7 @@ export function generateMockMoonBit(prompt, context = {}) {
       summary: "Generated a MoonBit program that adds numbers from 1 to the requested upper bound.",
       moonbitCode: sumProgram(n),
       sourceFiles,
-    }, workflowManifest(), buildBenchmarkProfile({
-      scenario: "MoonBit workflow synthesis",
-      fileInfo,
-      generatedFileCount: sourceFiles.length,
-      chunkSizes: ["not applicable"],
-      focus: ["build success", "starter project completeness"],
-      analysis,
-    }));
+    }, "moonbit-task", fileInfo, analysis);
   }
 
   const sourceFiles = workflowSourceFiles(prompt);
@@ -416,14 +238,7 @@ export function generateMockMoonBit(prompt, context = {}) {
     summary: "Returned a safe starter program when the local generator did not match a more specific intent.",
     moonbitCode: `fn main {\n  println("MoonAP received: ${safePrompt(prompt)}")\n  println("Tip: provide a file path and ask for local analysis to trigger the Wasm workflow.")\n}`,
     sourceFiles,
-  }, workflowManifest(), buildBenchmarkProfile({
-    scenario: "MoonBit workflow synthesis",
-    fileInfo,
-    generatedFileCount: sourceFiles.length,
-    chunkSizes: ["not applicable"],
-    focus: ["build success", "starter project completeness"],
-    analysis,
-  }));
+  }, "moonbit-task", fileInfo, analysis);
 }
 
 

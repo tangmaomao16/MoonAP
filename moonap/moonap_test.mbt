@@ -32,13 +32,55 @@ test "demo context includes a reusable synthesis manifest" {
   let manifest = context.synthesis_manifest.unwrap()
   let benchmark = context.benchmark_profile.unwrap()
   let kernel = manifest.task_kernel_protocol.unwrap()
-  assert_eq(manifest.project_files.length(), 5)
+  assert_eq(manifest.project_files.length(), 6)
   assert_eq(manifest.skills.length(), 2)
   assert_true(manifest.project_files[3].path.contains("cmd/main/fastq"))
-  assert_true(manifest.verification_gate[2].detail.contains("formal verification slot"))
-  assert_eq(benchmark.generated_source_file_count, 3)
+  assert_true(manifest.verification_gate[2].detail.contains("formal-proof slot"))
+  assert_eq(benchmark.generated_source_file_count, 4)
   assert_true(benchmark.recommended_chunk_sizes.contains("8 MB"))
   assert_eq(kernel.protocol_name, "moonap.fastq.streaming.v1")
   assert_true(kernel.to_json().stringify().contains("\"input_mode\":\"StreamingBytes\""))
   assert_true(kernel.ingest_fn == "ingest_chunk")
+}
+
+test "task router policy keeps MoonAP generic" {
+  let policy = @moonap.task_router_policy()
+  let encoded = policy.to_json().stringify()
+  assert_eq(policy.default_mode, "chat")
+  assert_true(encoded.contains("\"mode\":\"moonbit-task\""))
+  assert_true(encoded.contains("\"mode\":\"game-agent\""))
+  assert_true(encoded.contains("\"mode\":\"fastq-agent\""))
+  assert_true(policy.file_analysis_keywords.contains("excel"))
+  assert_true(policy.artifact_keywords.contains("moonbit"))
+}
+
+test "llm router policy exposes cross-provider model pool" {
+  let policy = @moonap.llm_router_policy()
+  let encoded = policy.to_json().stringify()
+  assert_eq(policy.default_provider, "gemini")
+  assert_true(encoded.contains("\"key\":\"gemini\""))
+  assert_true(encoded.contains("\"key\":\"siliconflow\""))
+  assert_true(encoded.contains("\"key\":\"zai\""))
+  assert_true(encoded.contains("\"key\":\"openrouter\""))
+  assert_true(encoded.contains("gemini-3-flash-preview"))
+  assert_true(encoded.contains("DeepSeek-R1-Distill-Qwen-32B"))
+}
+
+test "file analysis policy is extensible beyond fastq" {
+  let policy = @moonap.file_analysis_policy()
+  let encoded = policy.to_json().stringify()
+  assert_eq(policy.max_preview_lines, 12)
+  assert_true(encoded.contains("\"detected_type\":\"fastq\""))
+  assert_true(encoded.contains("\"detected_type\":\"csv\""))
+  assert_true(encoded.contains("\"detected_type\":\"spreadsheet\""))
+  assert_true(encoded.contains("\"default_analysis\":\"spreadsheet-summary\""))
+  assert_true(encoded.contains("\"analysis_type\":\"csv-summary\""))
+}
+
+test "codegen contract is owned by MoonBit" {
+  let contract = @moonap.moonbit_codegen_contract()
+  assert_true(contract.contains("sourceFiles is required"))
+  assert_true(contract.contains("cmd/main/main.mbt"))
+  assert_true(contract.contains("Do not use print_string"))
+  assert_true(contract.contains("taskKernelProtocol"))
 }

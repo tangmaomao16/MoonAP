@@ -6,8 +6,11 @@ import { PORT, ROOT_DIR } from "./lib/config.mjs";
 import { generateMoonAPResponse } from "./lib/chat-engine-v3.mjs";
 import { writeFastqBenchmarkArtifacts } from "./lib/fastq-benchmark.mjs";
 import { analyzeLocalFile, inspectLocalFile } from "./lib/local-file-service.mjs";
+import { getFileAnalysisPolicy } from "./lib/file-analysis-policy.mjs";
+import { getLlmRouterPolicy } from "./lib/llm-router-policy.mjs";
 import { generateMockChatReply, generateMockMoonBit } from "./lib/mock-v3.mjs";
 import { compileMoonBitToWasm } from "./lib/moonbit-compiler.mjs";
+import { getTaskRouterPolicy } from "./lib/task-router-policy.mjs";
 
 const WEB_ROOT = path.join(ROOT_DIR, "web");
 const moonVersionPromise = detectMoonVersion();
@@ -146,6 +149,21 @@ const server = http.createServer(async (request, response) => {
 
   if (request.method === "GET" && request.url === "/api/health") {
     sendJson(response, 200, { ok: true, moonVersion: await moonVersionPromise });
+    return;
+  }
+
+  if (request.method === "GET" && request.url === "/api/llm-router-policy") {
+    sendJson(response, 200, { ok: true, policy: getLlmRouterPolicy() });
+    return;
+  }
+
+  if (request.method === "GET" && request.url === "/api/task-router-policy") {
+    sendJson(response, 200, { ok: true, policy: getTaskRouterPolicy() });
+    return;
+  }
+
+  if (request.method === "GET" && request.url === "/api/file-analysis-policy") {
+    sendJson(response, 200, { ok: true, policy: getFileAnalysisPolicy() });
     return;
   }
 

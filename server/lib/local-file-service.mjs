@@ -2,25 +2,20 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import readline from "node:readline";
+import {
+  chooseChunkSizesByPolicy,
+  detectFileTypeByPolicy,
+  getAnalysisPolicy,
+  getDefaultAnalysisForType,
+  getFileAnalysisPolicy,
+} from "./file-analysis-policy.mjs";
 
-const MAX_PREVIEW_BYTES = 4096;
-const MAX_PREVIEW_LINES = 12;
+const FILE_POLICY = getFileAnalysisPolicy();
+const MAX_PREVIEW_BYTES = FILE_POLICY.maxPreviewBytes;
+const MAX_PREVIEW_LINES = FILE_POLICY.maxPreviewLines;
 
 function detectFileType(filePath) {
-  const extension = path.extname(filePath).toLowerCase();
-  if ([".fastq", ".fq"].includes(extension)) {
-    return "fastq";
-  }
-  if (extension === ".csv") {
-    return "csv";
-  }
-  if (extension === ".json") {
-    return "json";
-  }
-  if ([".log", ".txt", ".tsv"].includes(extension)) {
-    return "text";
-  }
-  return "unknown";
+  return detectFileTypeByPolicy(filePath);
 }
 
 async function readPreviewLines(filePath) {
@@ -47,13 +42,7 @@ function formatRatio(numerator, denominator) {
 }
 
 function chooseChunkSizes(sizeBytes) {
-  if (sizeBytes >= 5 * 1024 * 1024 * 1024) {
-    return ["16 MB", "8 MB", "4 MB"];
-  }
-  if (sizeBytes >= 1024 * 1024 * 1024) {
-    return ["8 MB", "16 MB", "4 MB"];
-  }
-  return ["4 MB", "8 MB", "16 MB"];
+  return chooseChunkSizesByPolicy("fastq-n-stats", sizeBytes);
 }
 
 function estimateChunkCount(sizeBytes, chunkBytes) {
@@ -64,16 +53,17 @@ function estimateChunkCount(sizeBytes, chunkBytes) {
 }
 
 function buildFastqBenchmarkPlan(sizeBytes) {
+  const policy = getAnalysisPolicy("fastq-n-stats");
   const chunkSizes = chooseChunkSizes(sizeBytes);
   const primaryChunkLabel = chunkSizes[0];
   const primaryChunkBytes = Number.parseInt(primaryChunkLabel, 10) * 1024 * 1024;
 
   return {
-    benchmarkTiers: ["0.1 GB", "1 GB", "5 GB"],
+    benchmarkTiers: policy?.benchmarkTiers || ["0.1 GB", "1 GB", "5 GB"],
     recommendedChunkSizes: chunkSizes,
     primaryChunkLabel,
     estimatedChunksAtCurrentSize: estimateChunkCount(sizeBytes, primaryChunkBytes),
-    evaluationFocus: ["memory peak", "chunk throughput", "total runtime", "output correctness"],
+    evaluationFocus: policy?.evaluationFocus || ["memory peak", "chunk throughput", "total runtime", "output correctness"],
   };
 }
 
@@ -312,16 +302,18 @@ export async function inspectLocalFile(filePath) {
 
 export async function analyzeLocalFile({ filePath, requestedAnalysis = "auto" }) {
   const fileInfo = await inspectLocalFile(filePath);
+  const defaultAnalysis = getDefaultAnalysisForType(fileInfo.detectedType);
+  const analysisType = requestedAnalysis === "auto" ? defaultAnalysis : requestedAnalysis;
 
-  if (requestedAnalysis === "fastq-n-stats" || fileInfo.detectedType === "fastq") {
+  if (analysisType === "fastq-n-stats" || fileInfo.detectedType === "fastq") {
     return analyzeFastqN(fileInfo.path);
   }
 
-  if (requestedAnalysis === "auto" && fileInfo.detectedType === "csv") {
+  if (analysisType === "csv-summary" && fileInfo.detectedType === "csv") {
     return analyzeCsv(fileInfo.path, fileInfo.previewLines);
   }
 
-  if (requestedAnalysis === "auto" && fileInfo.detectedType === "json") {
+  if (analysisType === "json-summary" && fileInfo.detectedType === "json") {
     return analyzeJson(fileInfo.path);
   }
 

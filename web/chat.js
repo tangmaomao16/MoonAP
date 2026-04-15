@@ -112,7 +112,7 @@ const MODE_DETAILS = {
   },
 };
 
-const LLM_PROVIDERS = {
+let LLM_PROVIDERS = {
   gemini: {
     label: "Gemini",
     baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
@@ -159,6 +159,21 @@ const LLM_PROVIDERS = {
     ],
   },
 };
+
+async function loadLlmRouterPolicy() {
+  try {
+    const response = await fetch("/api/llm-router-policy");
+    const payload = await response.json();
+    const providers = payload?.policy?.providersByKey;
+    if (!response.ok || !payload.ok || !providers || typeof providers !== "object") {
+      return;
+    }
+    LLM_PROVIDERS = providers;
+    logProgress("Loaded MoonBit-defined LLM Router policy.");
+  } catch (error) {
+    logProgress(`Using browser fallback LLM Router policy: ${error.message}`);
+  }
+}
 
 let history = [];
 let latestWasmBase64 = "";
@@ -2640,15 +2655,20 @@ skillLibraryGrid.addEventListener("click", (event) => {
   skillLibraryDialog.close();
 });
 
-loadLlmConfig();
-renderSkillLibrary();
-setMode(selectedMode);
-renderBrowserFileInfo(null);
-updateFastqActionState("choose-file");
-syncWorkbenchTabs();
-resetArtifactPanelForChat();
-syncEmptyState();
-refreshHealth();
-updateApiBanner();
-showInspector(false);
-renderProgressLog();
+async function initializeMoonAP() {
+  await loadLlmRouterPolicy();
+  loadLlmConfig();
+  renderSkillLibrary();
+  setMode(selectedMode);
+  renderBrowserFileInfo(null);
+  updateFastqActionState("choose-file");
+  syncWorkbenchTabs();
+  resetArtifactPanelForChat();
+  syncEmptyState();
+  refreshHealth();
+  updateApiBanner();
+  showInspector(false);
+  renderProgressLog();
+}
+
+initializeMoonAP();

@@ -1,4 +1,5 @@
 import { resolveModelConfig } from "./config.mjs";
+import { MOONBIT_CODEGEN_CONTRACT } from "./codegen-contract.mjs";
 import { MOONBIT_AGENT_SKILL } from "./moonbit-agent-skill.mjs";
 
 const RETRYABLE_REMOTE_CODES = ["1234", "1312"];
@@ -320,17 +321,6 @@ function buildGeneratedFilePromptBlock(prompt) {
 }
 
 function buildProtocolAwareSystemPrompt(prompt = "", protocol = null) {
-  const requiredKeys = [
-    "title",
-    "summary",
-    "moonbitCode",
-    "sourceFiles",
-    "projectManifest",
-    "skills",
-    "verificationGate",
-    "taskKernelProtocol",
-  ];
-
   const protocolBlock = protocol
     ? [
         `Target task kernel protocol: ${protocol.protocolName}`,
@@ -374,28 +364,7 @@ function buildProtocolAwareSystemPrompt(prompt = "", protocol = null) {
   return [
     "You are MoonAP, an expert MoonBit code generator.",
     MOONBIT_AGENT_SKILL,
-    `Return strict JSON with keys: ${requiredKeys.join(", ")}.`,
-    "sourceFiles is required and must be an array of { path, content } objects.",
-    "cmd/main/main.mbt must exist in sourceFiles.",
-    "Prefer a single-package project rooted at cmd/main whenever possible.",
-    "If you create extra package directories such as lib or runtime, each directory with .mbt files must be a valid MoonBit package and imports must match those directory names.",
-    "Do not reference packages like @lib unless matching source files exist in that package directory.",
-    "For workflow and utility tasks, prefer 2-3 small source files instead of a single giant file.",
-    "Put reusable logic in helper files under cmd/main and make main.mbt call those helpers.",
-    "The generated program must print a visible result to stdout when the wasm entrypoint runs.",
-    "Do not use print_string. It is not available here.",
-    "Use println for normal visible output.",
-    "For downloadable file generation tasks, build the full output string or JSON bundle and print it once at the end with println.",
-    "Avoid random-number APIs or numeric reinterpret tricks unless absolutely required. Prefer deterministic generation from the record index.",
-    "moonbitCode must still be present and match the main entry program.",
-    "projectManifest must describe the synthesized multi-file MoonBit project.",
-    "verificationGate must be an array of checks with name, level, passed, detail.",
-    "skills must be an array of reusable skill records.",
-    "Optional key: generatedDownloads. Use it when the task should create downloadable files from Wasm output.",
-    "taskKernelProtocol must be present and must match the requested protocol exactly when one is provided.",
-    "Generate MoonBit code that follows the protocol lifecycle: init -> ingest -> finalize.",
-    "Prefer simple MoonBit 0.9-compatible code. Avoid StringView replace calls such as raw.trim().replace(...); use raw.trim().to_string() or other clearly compatible forms.",
-    "Do not return markdown fences or explanations outside the JSON object.",
+    MOONBIT_CODEGEN_CONTRACT,
     protocolBlock,
     fileStructureBlock,
     buildGeneratedFilePromptBlock(prompt),

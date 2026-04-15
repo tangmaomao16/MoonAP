@@ -1,3 +1,7 @@
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+import { ROOT_DIR } from "./config.mjs";
+
 function buildTaskKernelProtocol({
   protocolName,
   inputMode,
@@ -20,7 +24,7 @@ function buildTaskKernelProtocol({
   };
 }
 
-export function fastqTaskKernelProtocol() {
+function fastqTaskKernelProtocolFallback() {
   return buildTaskKernelProtocol({
     protocolName: "moonap.fastq.streaming.v1",
     inputMode: "streaming-bytes",
@@ -42,7 +46,7 @@ export function fastqTaskKernelProtocol() {
   });
 }
 
-export function workflowTaskKernelProtocol() {
+function workflowTaskKernelProtocolFallback() {
   return buildTaskKernelProtocol({
     protocolName: "moonap.workflow.whole-file.v1",
     inputMode: "whole-file-text",
@@ -63,7 +67,7 @@ export function workflowTaskKernelProtocol() {
   });
 }
 
-export function gameTaskKernelProtocol() {
+function gameTaskKernelProtocolFallback() {
   return buildTaskKernelProtocol({
     protocolName: "moonap.browser.interactive.v1",
     inputMode: "interactive",
@@ -82,6 +86,64 @@ export function gameTaskKernelProtocol() {
       "emit browser-safe frame summaries for rendering",
     ],
   });
+}
+
+function toKebabInputMode(value) {
+  return String(value || "")
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .toLowerCase();
+}
+
+function fromMoonBitProtocol(protocol) {
+  if (!protocol || typeof protocol !== "object") return null;
+  return buildTaskKernelProtocol({
+    protocolName: protocol.protocol_name,
+    inputMode: toKebabInputMode(protocol.input_mode),
+    stateType: protocol.state_type,
+    initFn: protocol.init_fn,
+    ingestFn: protocol.ingest_fn,
+    finalizeFn: protocol.finalize_fn,
+    hostResponsibilities: Array.isArray(protocol.host_responsibilities) ? protocol.host_responsibilities : [],
+    kernelResponsibilities: Array.isArray(protocol.kernel_responsibilities) ? protocol.kernel_responsibilities : [],
+  });
+}
+
+function loadMoonBitProtocols() {
+  const moonapDir = path.join(ROOT_DIR, "moonap");
+  const result = spawnSync("moon", ["run", "cmd/task_protocol"], {
+    cwd: moonapDir,
+    encoding: "utf8",
+    timeout: 5000,
+    windowsHide: true,
+  });
+  if (result.status !== 0 || !String(result.stdout || "").trim()) {
+    return null;
+  }
+
+  const [fastq, workflow, game] = String(result.stdout)
+    .split(/\r?\n---\r?\n/)
+    .map((chunk) => chunk.trim())
+    .map((chunk) => JSON.parse(chunk));
+
+  return {
+    "fastq-agent": fromMoonBitProtocol(fastq),
+    "moonbit-task": fromMoonBitProtocol(workflow),
+    "game-agent": fromMoonBitProtocol(game),
+  };
+}
+
+const MOONBIT_PROTOCOLS = loadMoonBitProtocols();
+
+export function fastqTaskKernelProtocol() {
+  return MOONBIT_PROTOCOLS?.["fastq-agent"] || fastqTaskKernelProtocolFallback();
+}
+
+export function workflowTaskKernelProtocol() {
+  return MOONBIT_PROTOCOLS?.["moonbit-task"] || workflowTaskKernelProtocolFallback();
+}
+
+export function gameTaskKernelProtocol() {
+  return MOONBIT_PROTOCOLS?.["game-agent"] || gameTaskKernelProtocolFallback();
 }
 
 export function getTaskKernelProtocol(mode) {
