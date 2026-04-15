@@ -1,19 +1,38 @@
 import fs from "node:fs/promises";
-import http from "node:http";
 import path from "node:path";
-import { spawn } from "node:child_process";
-import { PORT, ROOT_DIR } from "./lib/config.mjs";
-import { getArtifactValidationPolicy } from "./lib/artifact-validation-policy.mjs";
-import { getAttachmentRuntimeContract } from "./lib/attachment-runtime-contract.mjs";
-import { generateMoonAPResponse } from "./lib/chat-engine-v3.mjs";
-import { writeFastqBenchmarkArtifacts } from "./lib/fastq-benchmark.mjs";
-import { analyzeLocalFile, inspectLocalFile } from "./lib/local-file-service.mjs";
-import { getFileAnalysisPolicy } from "./lib/file-analysis-policy.mjs";
-import { getLlmRouterPolicy } from "./lib/llm-router-policy.mjs";
-import { generateMockChatReply, generateMockMoonBit } from "./lib/mock-v3.mjs";
-import { compileMoonBitToWasm } from "./lib/moonbit-compiler.mjs";
-import { getMoonBitServerContract } from "./lib/moonbit-server-contract.mjs";
-import { getTaskRouterPolicy } from "./lib/task-router-policy.mjs";
+import { pathToFileURL } from "node:url";
+import { ROOT_DIR } from "./lib/config.mjs";
+
+const builtMoonBitServer = path.join(
+  ROOT_DIR,
+  "moonap",
+  "_build",
+  "js",
+  "debug",
+  "build",
+  "cmd",
+  "server_native",
+  "server_native.js",
+);
+
+try {
+  await fs.access(builtMoonBitServer);
+} catch {
+  console.error("MoonAP no longer starts a separate JavaScript HTTP server.");
+  console.error("Build the MoonBit-authored server first:");
+  console.error("  npm run build:moonbit-js");
+  process.exitCode = 1;
+  process.exit();
+}
+
+console.warn("server/index.mjs is now only a compatibility launcher.");
+console.warn("MoonAP is starting the MoonBit-authored server from moonap/cmd/server_native.");
+await import(pathToFileURL(builtMoonBitServer).href);
+await new Promise(() => {});
+
+/*
+The old JavaScript HTTP server implementation is intentionally disabled.
+MoonAP now uses the MoonBit-authored JS-target server at moonap/cmd/server_native.
 
 const WEB_ROOT = path.join(ROOT_DIR, "web");
 const moonVersionPromise = detectMoonVersion();
@@ -447,3 +466,4 @@ const server = http.createServer(async (request, response) => {
 server.listen(PORT, () => {
   console.log(`MoonAP is ready at http://localhost:${PORT}`);
 });
+*/

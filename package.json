@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "npm run start:moonbit-server",
     "start": "npm run start:moonbit-server",
-    "start:js-server": "node server/index.mjs",
     "build:moonbit-js": "cd moonap && moon build --target js",
     "check:moonbit-server": "npm run build:moonbit-js && node --check moonap/_build/js/debug/build/cmd/server_native/server_native.js",
     "start:moonbit-server": "npm run build:moonbit-js && node moonap/_build/js/debug/build/cmd/server_native/server_native.js",

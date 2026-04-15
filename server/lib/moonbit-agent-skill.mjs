@@ -1,6 +1,4 @@
-import path from "node:path";
-import { spawnSync } from "node:child_process";
-import { ROOT_DIR } from "./config.mjs";
+import { getMoonBitBootstrapSection } from "./moonbit-bootstrap.mjs";
 
 const FALLBACK_MOONBIT_AGENT_SKILL = [
   "MoonBit 0.9 skill summary for code generation:",
@@ -17,19 +15,7 @@ const FALLBACK_MOONBIT_AGENT_SKILL = [
 ].join("\n");
 
 function loadMoonBitAgentSkill() {
-  const moonapDir = path.join(ROOT_DIR, "moonap");
-  const result = spawnSync("moon", ["run", "cmd/agent_skill"], {
-    cwd: moonapDir,
-    encoding: "utf8",
-    timeout: 5000,
-    windowsHide: true,
-  });
-
-  const output = String(result.stdout || "").trim();
-  if (result.status === 0 && output) {
-    return output;
-  }
-  return FALLBACK_MOONBIT_AGENT_SKILL;
+  return String(getMoonBitBootstrapSection("agent_skill") || "").trim() || FALLBACK_MOONBIT_AGENT_SKILL;
 }
 
 export const MOONBIT_AGENT_SKILL = loadMoonBitAgentSkill();

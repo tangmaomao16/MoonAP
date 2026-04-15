@@ -95,6 +95,8 @@ test "server contract is owned by MoonBit" {
   assert_true(encoded.contains("/api/artifact-validation-policy"))
   assert_true(encoded.contains("/api/codegen-contract"))
   assert_true(encoded.contains("/api/compiler-plan"))
+  assert_true(encoded.contains("/api/server-runtime"))
+  assert_true(encoded.contains("/api/server-bootstrap"))
   assert_true(encoded.contains("/api/chat"))
   assert_true(encoded.contains("/api/benchmarks/fastq"))
   assert_true(contract.routes.length() >= 10)
@@ -148,4 +150,27 @@ test "compiler plan is owned by MoonBit" {
   assert_true(plan.wasm_output_path.contains("main.wasm"))
   assert_true(encoded.contains("__MOONAP_WASM_EXPORTS__"))
   assert_true(plan.package_dirs_excluded_from_autofill.contains("cmd/main"))
+}
+
+test "moonbit server runtime manifest owns the default server entry" {
+  let runtime = @moonap.moonbit_server_runtime()
+  let encoded = runtime.to_json().stringify()
+  assert_eq(runtime.server_entry, "moonap/cmd/server_native/main.mbt")
+  assert_eq(runtime.build_target, "js")
+  assert_true(runtime.endpoint_parity)
+  assert_true(encoded.contains("server/lib/chat-engine-v3.mjs"))
+  assert_true(encoded.contains("server/lib/moonbit-compiler.mjs"))
+  assert_true(encoded.contains("platform adapters"))
+}
+
+test "moonbit server bootstrap carries every server policy in one payload" {
+  let bootstrap = @moonap.moonbit_server_bootstrap()
+  let encoded = bootstrap.to_json().stringify()
+  assert_eq(bootstrap.runtime.server_entry, "moonap/cmd/server_native/main.mbt")
+  assert_eq(bootstrap.contract.static_root, "web")
+  assert_true(encoded.contains("\"llm_router\""))
+  assert_true(encoded.contains("\"task_router\""))
+  assert_true(encoded.contains("\"artifact_validation\""))
+  assert_true(encoded.contains("Return strict JSON"))
+  assert_true(encoded.contains("MoonBit 0.9 skill summary"))
 }

@@ -1,6 +1,4 @@
-import path from "node:path";
-import { spawnSync } from "node:child_process";
-import { ROOT_DIR } from "./config.mjs";
+import { getMoonBitBootstrapSection } from "./moonbit-bootstrap.mjs";
 
 const FALLBACK_CODEGEN_CONTRACT = [
   "Return strict JSON with keys: title, summary, moonbitCode, sourceFiles, projectManifest, skills, verificationGate, taskKernelProtocol.",
@@ -14,15 +12,7 @@ const FALLBACK_CODEGEN_CONTRACT = [
 ].join("\n");
 
 function loadMoonBitCodegenContract() {
-  const moonapDir = path.join(ROOT_DIR, "moonap");
-  const result = spawnSync("moon", ["run", "cmd/codegen_contract"], {
-    cwd: moonapDir,
-    encoding: "utf8",
-    timeout: 5000,
-    windowsHide: true,
-  });
-  const output = String(result.stdout || "").trim();
-  return result.status === 0 && output ? output : FALLBACK_CODEGEN_CONTRACT;
+  return String(getMoonBitBootstrapSection("codegen_contract") || "").trim() || FALLBACK_CODEGEN_CONTRACT;
 }
 
 export const MOONBIT_CODEGEN_CONTRACT = loadMoonBitCodegenContract();

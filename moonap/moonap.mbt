@@ -194,6 +194,38 @@ pub struct ServerContract {
 } derive(Eq, Debug, ToJson, FromJson)
 
 ///|
+pub struct ServerAdapterModule {
+  name : String
+  path : String
+  responsibility : String
+  temporary : Bool
+} derive(Eq, Debug, ToJson, FromJson)
+
+///|
+pub struct MoonBitServerRuntime {
+  server_entry : String
+  build_target : String
+  default_npm_entry : String
+  endpoint_parity : Bool
+  adapter_modules : Array[ServerAdapterModule]
+  migration_notes : Array[String]
+} derive(Eq, Debug, ToJson, FromJson)
+
+///|
+pub struct ServerBootstrap {
+  contract : ServerContract
+  runtime : MoonBitServerRuntime
+  llm_router : LlmRouterPolicy
+  task_router : TaskRouterPolicy
+  file_analysis : FileAnalysisPolicy
+  artifact_validation : ArtifactValidationPolicy
+  attachment_runtime : AttachmentRuntimeContract
+  compiler_plan : CompilerPlan
+  codegen_contract : String
+  agent_skill : String
+} derive(Eq, Debug, ToJson, FromJson)
+
+///|
 pub struct AgentRuntimePlan {
   normalized_mode : String
   experience_mode : String
@@ -559,6 +591,62 @@ pub fn ServerContract::new(
     routes,
     adapter_responsibilities,
     migration_order,
+  }
+}
+
+///|
+pub fn ServerAdapterModule::new(
+  name : String,
+  path : String,
+  responsibility : String,
+  temporary : Bool,
+) -> ServerAdapterModule {
+  { name, path, responsibility, temporary }
+}
+
+///|
+pub fn MoonBitServerRuntime::new(
+  server_entry : String,
+  build_target : String,
+  default_npm_entry : String,
+  endpoint_parity : Bool,
+  adapter_modules : Array[ServerAdapterModule],
+  migration_notes : Array[String],
+) -> MoonBitServerRuntime {
+  {
+    server_entry,
+    build_target,
+    default_npm_entry,
+    endpoint_parity,
+    adapter_modules,
+    migration_notes,
+  }
+}
+
+///|
+pub fn ServerBootstrap::new(
+  contract : ServerContract,
+  runtime : MoonBitServerRuntime,
+  llm_router : LlmRouterPolicy,
+  task_router : TaskRouterPolicy,
+  file_analysis : FileAnalysisPolicy,
+  artifact_validation : ArtifactValidationPolicy,
+  attachment_runtime : AttachmentRuntimeContract,
+  compiler_plan : CompilerPlan,
+  codegen_contract : String,
+  agent_skill : String,
+) -> ServerBootstrap {
+  {
+    contract,
+    runtime,
+    llm_router,
+    task_router,
+    file_analysis,
+    artifact_validation,
+    attachment_runtime,
+    compiler_plan,
+    codegen_contract,
+    agent_skill,
   }
 }
 
@@ -1710,6 +1798,22 @@ pub fn moonap_server_contract() -> ServerContract {
       ),
       ServerRoutePolicy::new(
         "GET",
+        "/api/server-runtime",
+        "moonbit-runtime",
+        "Expose the MoonBit-authored server runtime manifest and temporary adapter boundary.",
+        true,
+        true,
+      ),
+      ServerRoutePolicy::new(
+        "GET",
+        "/api/server-bootstrap",
+        "moonbit-runtime",
+        "Expose the single MoonBit-authored bootstrap payload used by the native server entry.",
+        true,
+        true,
+      ),
+      ServerRoutePolicy::new(
+        "GET",
         "/api/llm-router-policy",
         "moonbit-policy",
         "Expose cross-provider LLM routing policy authored in MoonBit.",
@@ -1844,6 +1948,87 @@ pub fn moonap_server_contract() -> ServerContract {
 ///|
 pub fn moonap_server_contract_json() -> String {
   moonap_server_contract().to_json().stringify(indent=2)
+}
+
+///|
+pub fn moonbit_server_runtime() -> MoonBitServerRuntime {
+  MoonBitServerRuntime::new(
+    "moonap/cmd/server_native/main.mbt",
+    "js",
+    "npm run dev",
+    true,
+    [
+      ServerAdapterModule::new(
+        "moonbit-bootstrap",
+        "server/lib/moonbit-bootstrap.mjs",
+        "Thin Node process adapter that loads the single MoonBit ServerBootstrap payload.",
+        true,
+      ),
+      ServerAdapterModule::new(
+        "chat-engine",
+        "server/lib/chat-engine-v3.mjs",
+        "Temporary Node adapter for provider HTTP calls, remote artifact repair, and legacy chat orchestration.",
+        true,
+      ),
+      ServerAdapterModule::new(
+        "moonbit-compiler",
+        "server/lib/moonbit-compiler.mjs",
+        "Temporary process/filesystem adapter driven by the MoonBit CompilerPlan.",
+        true,
+      ),
+      ServerAdapterModule::new(
+        "local-file-service",
+        "server/lib/local-file-service.mjs",
+        "Temporary server-side local file adapter driven by the MoonBit FileAnalysisPolicy.",
+        true,
+      ),
+      ServerAdapterModule::new(
+        "mock-artifact-factory",
+        "server/lib/mock-v3.mjs",
+        "Temporary safe fallback artifact generator for offline demos and compile fallback.",
+        true,
+      ),
+      ServerAdapterModule::new(
+        "fastq-benchmark-writer",
+        "server/lib/fastq-benchmark.mjs",
+        "Temporary benchmark/sample writer; not part of the core product runtime.",
+        true,
+      ),
+    ],
+    [
+      "The HTTP route table and default server entry are authored in MoonBit and compiled to JS.",
+      "All server policies are injected through one MoonBit ServerBootstrap payload.",
+      "JS files under server/lib are platform adapters for Node HTTP/network/filesystem/process APIs, not the product server entry.",
+      "The next migration layer is to move local file kernels and LLM routing orchestration into MoonBit modules with thin extern adapters.",
+      "Do not run moon run cmd/server_native --target js as a check because the server intentionally keeps running.",
+    ],
+  )
+}
+
+///|
+pub fn moonbit_server_runtime_json() -> String {
+  moonbit_server_runtime().to_json().stringify(indent=2)
+}
+
+///|
+pub fn moonbit_server_bootstrap() -> ServerBootstrap {
+  ServerBootstrap::new(
+    moonap_server_contract(),
+    moonbit_server_runtime(),
+    llm_router_policy(),
+    task_router_policy(),
+    file_analysis_policy(),
+    artifact_validation_policy(),
+    attachment_runtime_contract(),
+    compiler_plan(),
+    moonbit_codegen_contract(),
+    moonbit_agent_skill(),
+  )
+}
+
+///|
+pub fn moonbit_server_bootstrap_json() -> String {
+  moonbit_server_bootstrap().to_json().stringify(indent=2)
 }
 
 ///|

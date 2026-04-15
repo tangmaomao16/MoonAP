@@ -1,6 +1,4 @@
-import path from "node:path";
-import { spawnSync } from "node:child_process";
-import { ROOT_DIR } from "./config.mjs";
+import { getMoonBitBootstrapSection } from "./moonbit-bootstrap.mjs";
 
 const FALLBACK_PLAN = {
   moduleName: "moonap_generated/runtime",
@@ -72,17 +70,8 @@ function planFromMoonBit(plan) {
 }
 
 function loadMoonBitCompilerPlan() {
-  const moonapDir = path.join(ROOT_DIR, "moonap");
-  const result = spawnSync("moon", ["run", "cmd/compiler_plan"], {
-    cwd: moonapDir,
-    encoding: "utf8",
-    timeout: 5000,
-    windowsHide: true,
-  });
-  if (result.status !== 0 || !String(result.stdout || "").trim()) {
-    return null;
-  }
-  return planFromMoonBit(JSON.parse(String(result.stdout).trim()));
+  const plan = getMoonBitBootstrapSection("compiler_plan");
+  return plan ? planFromMoonBit(plan) : null;
 }
 
 const COMPILER_PLAN = loadMoonBitCompilerPlan() || FALLBACK_PLAN;

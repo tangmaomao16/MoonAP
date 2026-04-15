@@ -1,6 +1,4 @@
-import path from "node:path";
-import { spawnSync } from "node:child_process";
-import { ROOT_DIR } from "./config.mjs";
+import { getMoonBitBootstrapSection } from "./moonbit-bootstrap.mjs";
 
 const FALLBACK_CONTRACT = {
   name: "MoonAP MoonBit-first server",
@@ -157,17 +155,8 @@ function contractFromMoonBit(contract) {
 }
 
 function loadMoonBitServerContract() {
-  const moonapDir = path.join(ROOT_DIR, "moonap");
-  const result = spawnSync("moon", ["run", "cmd/server_contract"], {
-    cwd: moonapDir,
-    encoding: "utf8",
-    timeout: 5000,
-    windowsHide: true,
-  });
-  if (result.status !== 0 || !String(result.stdout || "").trim()) {
-    return null;
-  }
-  return contractFromMoonBit(JSON.parse(String(result.stdout).trim()));
+  const contract = getMoonBitBootstrapSection("contract");
+  return contract ? contractFromMoonBit(contract) : null;
 }
 
 const MOONBIT_SERVER_CONTRACT = loadMoonBitServerContract() || FALLBACK_CONTRACT;

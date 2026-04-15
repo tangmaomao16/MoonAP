@@ -2,17 +2,9 @@
 extern "js" fn start_moonap_server(
   port : Int,
   web_root : String,
-  server_contract_json : String,
-  llm_router_policy_json : String,
-  task_router_policy_json : String,
-  file_analysis_policy_json : String,
-  artifact_validation_policy_json : String,
-  attachment_runtime_contract_json : String,
-  compiler_plan_json : String,
-  codegen_contract : String,
-  agent_skill : String,
+  server_bootstrap_json : String,
 ) -> Unit =
-  #| (port, webRoot, serverContractJson, llmRouterPolicyJson, taskRouterPolicyJson, fileAnalysisPolicyJson, artifactValidationPolicyJson, attachmentRuntimeContractJson, compilerPlanJson, codegenContract, agentSkill) => {
+  #| (port, webRoot, serverBootstrapJson) => {
   #|   const parseJson = (text, fallback) => {
   #|     try { return JSON.parse(String(text || "")); } catch { return fallback; }
   #|   };
@@ -63,14 +55,18 @@ extern "js" fn start_moonap_server(
   #|     const mock = await importServerLib("mock-v3.mjs");
   #|     const localFiles = await importServerLib("local-file-service.mjs");
   #|     const benchmark = await importServerLib("fastq-benchmark.mjs");
+  #|     const bootstrap = parseJson(serverBootstrapJson, {});
   #|     const policies = {
-  #|       serverContract: parseJson(serverContractJson, {}),
-  #|       llmRouterPolicy: parseJson(llmRouterPolicyJson, {}),
-  #|       taskRouterPolicy: parseJson(taskRouterPolicyJson, {}),
-  #|       fileAnalysisPolicy: parseJson(fileAnalysisPolicyJson, {}),
-  #|       artifactValidationPolicy: parseJson(artifactValidationPolicyJson, {}),
-  #|       attachmentRuntimeContract: parseJson(attachmentRuntimeContractJson, {}),
-  #|       compilerPlan: parseJson(compilerPlanJson, {}),
+  #|       serverContract: bootstrap.contract || {},
+  #|       serverRuntime: bootstrap.runtime || {},
+  #|       llmRouterPolicy: bootstrap.llm_router || {},
+  #|       taskRouterPolicy: bootstrap.task_router || {},
+  #|       fileAnalysisPolicy: bootstrap.file_analysis || {},
+  #|       artifactValidationPolicy: bootstrap.artifact_validation || {},
+  #|       attachmentRuntimeContract: bootstrap.attachment_runtime || {},
+  #|       compilerPlan: bootstrap.compiler_plan || {},
+  #|       codegenContract: bootstrap.codegen_contract || "",
+  #|       agentSkill: bootstrap.agent_skill || "",
   #|     };
   #|     const compileArtifactStrict = async (artifact) => {
   #|       if (!artifact?.moonbitCode && !artifact?.sourceFiles?.length) {
@@ -116,6 +112,14 @@ extern "js" fn start_moonap_server(
   #|           sendJson(res, 200, { ok: true, contract: policies.serverContract });
   #|           return;
   #|         }
+  #|         if (req.method === "GET" && url.pathname === "/api/server-runtime") {
+  #|           sendJson(res, 200, { ok: true, runtime: policies.serverRuntime });
+  #|           return;
+  #|         }
+  #|         if (req.method === "GET" && url.pathname === "/api/server-bootstrap") {
+  #|           sendJson(res, 200, { ok: true, bootstrap });
+  #|           return;
+  #|         }
   #|         if (req.method === "GET" && url.pathname === "/api/llm-router-policy") {
   #|           sendJson(res, 200, { ok: true, policy: policies.llmRouterPolicy });
   #|           return;
@@ -137,7 +141,7 @@ extern "js" fn start_moonap_server(
   #|           return;
   #|         }
   #|         if (req.method === "GET" && url.pathname === "/api/codegen-contract") {
-  #|           sendJson(res, 200, { ok: true, contract: codegenContract, skill: agentSkill });
+  #|           sendJson(res, 200, { ok: true, contract: policies.codegenContract, skill: policies.agentSkill });
   #|           return;
   #|         }
   #|         if (req.method === "GET" && url.pathname === "/api/compiler-plan") {
@@ -345,15 +349,7 @@ fn main {
   start_moonap_server(
     3000,
     "web",
-    @lib.moonap_server_contract_json(),
-    @lib.llm_router_policy_json(),
-    @lib.task_router_policy_json(),
-    @lib.file_analysis_policy_json(),
-    @lib.artifact_validation_policy_json(),
-    @lib.attachment_runtime_contract_json(),
-    @lib.compiler_plan_json(),
-    @lib.moonbit_codegen_contract(),
-    @lib.moonbit_agent_skill(),
+    @lib.moonbit_server_bootstrap_json(),
   )
 }
 

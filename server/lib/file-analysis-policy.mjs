@@ -1,6 +1,5 @@
 import path from "node:path";
-import { spawnSync } from "node:child_process";
-import { ROOT_DIR } from "./config.mjs";
+import { getMoonBitBootstrapSection } from "./moonbit-bootstrap.mjs";
 
 const FALLBACK_POLICY = {
   maxPreviewBytes: 4096,
@@ -52,17 +51,8 @@ function policyFromMoonBit(policy) {
 }
 
 function loadMoonBitPolicy() {
-  const moonapDir = path.join(ROOT_DIR, "moonap");
-  const result = spawnSync("moon", ["run", "cmd/file_analysis_policy"], {
-    cwd: moonapDir,
-    encoding: "utf8",
-    timeout: 5000,
-    windowsHide: true,
-  });
-  if (result.status !== 0 || !String(result.stdout || "").trim()) {
-    return null;
-  }
-  return policyFromMoonBit(JSON.parse(String(result.stdout).trim()));
+  const policy = getMoonBitBootstrapSection("file_analysis");
+  return policy ? policyFromMoonBit(policy) : null;
 }
 
 const FILE_ANALYSIS_POLICY = loadMoonBitPolicy() || FALLBACK_POLICY;

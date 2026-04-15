@@ -1,6 +1,4 @@
-import path from "node:path";
-import { spawnSync } from "node:child_process";
-import { ROOT_DIR } from "./config.mjs";
+import { getMoonBitBootstrapSection } from "./moonbit-bootstrap.mjs";
 
 const FALLBACK_POLICY = {
   defaultProvider: "gemini",
@@ -106,17 +104,8 @@ function policyFromMoonBit(policy) {
 }
 
 function loadMoonBitPolicy() {
-  const moonapDir = path.join(ROOT_DIR, "moonap");
-  const result = spawnSync("moon", ["run", "cmd/llm_router_policy"], {
-    cwd: moonapDir,
-    encoding: "utf8",
-    timeout: 5000,
-    windowsHide: true,
-  });
-  if (result.status !== 0 || !String(result.stdout || "").trim()) {
-    return null;
-  }
-  return policyFromMoonBit(JSON.parse(String(result.stdout).trim()));
+  const policy = getMoonBitBootstrapSection("llm_router");
+  return policy ? policyFromMoonBit(policy) : null;
 }
 
 const LLM_ROUTER_POLICY = loadMoonBitPolicy() || {
