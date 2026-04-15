@@ -1,4 +1,8 @@
-export const MOONBIT_AGENT_SKILL = [
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+import { ROOT_DIR } from "./config.mjs";
+
+const FALLBACK_MOONBIT_AGENT_SKILL = [
   "MoonBit 0.9 skill summary for code generation:",
   "- Target MoonBit v0.9 style and prefer simple, compile-first code.",
   "- Prefer a single-package project rooted at cmd/main unless multiple packages are truly needed.",
@@ -11,3 +15,21 @@ export const MOONBIT_AGENT_SKILL = [
   "- Prefer explicit, portable MoonBit code over clever syntax. Avoid risky package aliases or unsupported imports.",
   "- Generate code that is easy to compile to wasm and easy to inspect in small multi-file projects.",
 ].join("\n");
+
+function loadMoonBitAgentSkill() {
+  const moonapDir = path.join(ROOT_DIR, "moonap");
+  const result = spawnSync("moon", ["run", "cmd/agent_skill"], {
+    cwd: moonapDir,
+    encoding: "utf8",
+    timeout: 5000,
+    windowsHide: true,
+  });
+
+  const output = String(result.stdout || "").trim();
+  if (result.status === 0 && output) {
+    return output;
+  }
+  return FALLBACK_MOONBIT_AGENT_SKILL;
+}
+
+export const MOONBIT_AGENT_SKILL = loadMoonBitAgentSkill();
