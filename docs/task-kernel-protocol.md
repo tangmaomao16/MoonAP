@@ -31,9 +31,9 @@ Each synthesized artifact can expose:
 
 This is represented in:
 
-- MoonBit core types in [moonap.mbt](/C:/my_work/MoonBit_Competition/GitHub/MoonAP/moonap/moonap.mbt:1)
-- server-side protocol catalog in [task-kernel-protocol.mjs](/C:/my_work/MoonBit_Competition/GitHub/MoonAP/server/lib/task-kernel-protocol.mjs:1)
-- synthesized artifacts emitted by [mock-v3.mjs](/C:/my_work/MoonBit_Competition/GitHub/MoonAP/server/lib/mock-v3.mjs:1)
+- MoonBit core types in [moonap/moonap.mbt](../moonap/moonap.mbt)
+- MoonBit-owned task protocol commands under [moonap/cmd/task_protocol](../moonap/cmd/task_protocol)
+- thin host adapter helpers under [server/lib](../server/lib)
 
 ## Input Modes
 

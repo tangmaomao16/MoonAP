@@ -1,6 +1,6 @@
 # MoonAP
 
-MoonAP means MoonBit Agent Playground.
+MoonAP means **MoonBit Agent Playground**.
 
 This project aims to build a ChatGPT-like web application with a MoonBit-first workflow:
 
@@ -9,7 +9,7 @@ This project aims to build a ChatGPT-like web application with a MoonBit-first w
 - the system compiles that MoonBit code to WebAssembly
 - the browser runs the generated program directly
 
-The project is designed for the MoonBit software development competition, so the long-term goal is to move more of the agent logic into MoonBit itself, not just use MoonBit as a compilation target. The intended end state is a MoonBit software synthesis platform for local-first data computing.
+The project is designed for the MoonBit software development competition. Its goal is not only to compile generated code with MoonBit, but also to move agent policies, task protocols, validation rules, compiler plans, prompt policy, and the server entry into MoonBit.
 
 ## Project Vision
 
@@ -35,9 +35,12 @@ The intended architecture is:
 ## Current Repository Layout
 
 - `moonap/`: MoonBit core package, agent policies, compiler plan, and MoonBit-authored server entry
-- `server/`: legacy JS adapter modules used by the MoonBit-authored server for platform I/O, LLM calls, and compiler process execution
+- `moonap/cmd/server_native/`: MoonBit-authored server entry compiled with the JS target
+- `server/lib/`: thin Node host adapter modules used by the MoonBit-authored server for platform I/O, LLM calls, and compiler process execution
 - `web/`: browser UI
 - `samples/`: sample local files for experiments
+
+There is no standalone Node.js JavaScript HTTP server entry. The product server entry is `moonap/cmd/server_native/main.mbt`.
 
 ## Quick Start
 
@@ -49,7 +52,6 @@ Requirements:
 Start the web app from the project root:
 
 ```powershell
-cd C:\my_work\MoonBit_Competition\GitHub\MoonAP
 npm run dev
 ```
 
@@ -100,10 +102,10 @@ Suggested prompts:
 
 FastQ sample files for manual testing are available in:
 
-- [FASTQ_SAMPLES.md](/C:/my_work/MoonBit_Competition/GitHub/MoonAP/samples/FASTQ_SAMPLES.md:1)
-- [fastq-small.fastq](/C:/my_work/MoonBit_Competition/GitHub/MoonAP/samples/fastq-small.fastq:1)
-- [fastq-n-heavy.fastq](/C:/my_work/MoonBit_Competition/GitHub/MoonAP/samples/fastq-n-heavy.fastq:1)
-- [fastq-gc-mixed.fastq](/C:/my_work/MoonBit_Competition/GitHub/MoonAP/samples/fastq-gc-mixed.fastq:1)
+- [FASTQ_SAMPLES.md](samples/FASTQ_SAMPLES.md)
+- [fastq-small.fastq](samples/fastq-small.fastq)
+- [fastq-n-heavy.fastq](samples/fastq-n-heavy.fastq)
+- [fastq-gc-mixed.fastq](samples/fastq-gc-mixed.fastq)
 
 ## MoonBit Core Entry
 
@@ -112,7 +114,7 @@ Besides the web app, the MoonBit package now has its own runnable demo entry.
 Run:
 
 ```powershell
-cd C:\my_work\MoonBit_Competition\GitHub\MoonAP\moonap
+cd moonap
 moon run cmd/main
 ```
 
@@ -147,21 +149,22 @@ Current built-in protocol families are:
 - `moonap.workflow.whole-file.v1`
 - `moonap.browser.interactive.v1`
 
-See the full protocol note in [docs/task-kernel-protocol.md](/C:/my_work/MoonBit_Competition/GitHub/MoonAP/docs/task-kernel-protocol.md:1).
+See the full protocol note in [docs/task-kernel-protocol.md](docs/task-kernel-protocol.md).
+
+See the server architecture note in [docs/server-architecture.md](docs/server-architecture.md).
 
 ## Tests
 
 Run MoonBit tests:
 
 ```powershell
-cd C:\my_work\MoonBit_Competition\GitHub\MoonAP\moonap
+cd moonap
 moon test
 ```
 
-Run the reproducible FastQ benchmark suite:
+Optional: run the reproducible FastQ benchmark suite:
 
 ```powershell
-cd C:\my_work\MoonBit_Competition\GitHub\MoonAP
 npm run benchmark:fastq
 ```
 
@@ -170,31 +173,26 @@ This writes the latest benchmark artifacts to:
 - `.moonap-artifacts/benchmarks/fastq-benchmark-latest.json`
 - `.moonap-artifacts/benchmarks/fastq-benchmark-latest.md`
 
-When `samples/` contains saved `.fastq` or `.fq` files, the benchmark suite now includes them automatically. This means generated files such as [simulated_5mb.fastq](/C:/my_work/MoonBit_Competition/GitHub/MoonAP/samples/simulated_5mb.fastq) become part of the official MoonAP benchmark evidence instead of living outside the main workflow.
+When `samples/` contains saved `.fastq` or `.fq` files, the benchmark suite includes them automatically. Generated files such as `samples/simulated_5mb.fastq` can therefore become part of the local benchmark evidence instead of living outside the main workflow.
 
-## Optional Remote Model Configuration
+## LLM API Configuration
 
-By default, MoonAP can run with local mock generation so the full workflow is still demoable without an API key.
+MoonAP is designed to use user-provided LLM APIs. Open the `LLM` panel in the web UI, choose a provider/model, paste the API key, and save the settings.
 
-If you want to connect an OpenAI-compatible endpoint, set:
+Current provider presets include:
 
-- `OPENAI_BASE_URL`
-- `OPENAI_API_KEY`
-- `OPENAI_MODEL`
+- Gemini
+- SiliconFlow
+- Z.AI / GLM
+- OpenRouter
 
-Example:
-
-```powershell
-$env:OPENAI_BASE_URL="https://your-endpoint/v1"
-$env:OPENAI_API_KEY="sk-..."
-$env:OPENAI_MODEL="gpt-4.1-mini"
-npm run dev
-```
+API keys are intended for browser-side testing and are saved in the user's browser storage. Do not commit API keys to this repository.
 
 ## Current Status
 
 Already implemented:
 
+- no standalone Node.js JavaScript HTTP server entry
 - MoonBit-authored JS-target server entry as the default `npm run dev` / `npm start` path
 - MoonBit-owned server contract, task router policy, LLM router policy, file analysis policy, artifact validation policy, attachment runtime contract, and compiler plan
 - MoonBit-owned server runtime manifest exposed at `/api/server-runtime`
@@ -227,6 +225,12 @@ Already implemented:
 - MoonBit version display in the UI
 - MoonBit-side agent context JSON model and verification gate demo
 
+Current technical boundary:
+
+- MoonBit owns the server architecture and product policies.
+- `server/lib/` still contains Node host adapters for HTTP provider requests, filesystem access, and compiler process execution.
+- A fully native MoonBit server can be pursued once MoonBit server-side HTTP/filesystem/process libraries become mature enough for this workload.
+
 ## Competition Narrative
 
 MoonAP is not only a chat interface. It is intended to evolve into a MoonBit software synthesis system:
@@ -241,6 +245,12 @@ MoonAP is not only a chat interface. It is intended to evolve into a MoonBit sof
 The strongest showcase path is FastQ analysis with local-first execution and benchmarkable chunk-based processing.
 
 MoonAP now also exposes the synthesized MoonBit source files directly in the UI, so users and judges can inspect the actual multi-file artifact that is being compiled instead of only reading a high-level manifest.
+
+The competition narrative is:
+
+```text
+natural language -> MoonBit agent policy -> MoonBit code -> Wasm -> browser-local execution
+```
 
 ## Competition-Oriented Next Steps
 
