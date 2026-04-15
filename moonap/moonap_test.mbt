@@ -84,3 +84,52 @@ test "codegen contract is owned by MoonBit" {
   assert_true(contract.contains("Do not use print_string"))
   assert_true(contract.contains("taskKernelProtocol"))
 }
+
+test "server contract is owned by MoonBit" {
+  let contract = @moonap.moonap_server_contract()
+  let encoded = contract.to_json().stringify()
+  assert_true(encoded.contains("/api/server-contract"))
+  assert_true(encoded.contains("/api/llm-router-policy"))
+  assert_true(encoded.contains("/api/file-analysis-policy"))
+  assert_true(encoded.contains("/api/attachment-runtime-contract"))
+  assert_true(encoded.contains("/api/artifact-validation-policy"))
+  assert_true(encoded.contains("/api/chat"))
+  assert_true(contract.routes.length() >= 10)
+  assert_true(contract.adapter_responsibilities.contains("MoonBit compiler process execution"))
+  assert_true(contract.migration_order[0].contains("Move all route policy"))
+}
+
+test "agent runtime plan is decided by MoonBit policy" {
+  let plan = @moonap.moonap_agent_runtime_plan(
+    "count n bases in this fastq file",
+    "chat",
+    "fastq",
+    true,
+  )
+  assert_eq(plan.normalized_mode, "chat")
+  assert_true(plan.needs_file_analysis)
+  assert_true(plan.needs_artifact)
+  assert_eq(plan.requested_analysis, "fastq-n-stats")
+  assert_true(plan.adapter_notes[0].contains("MoonBit owns task classification"))
+}
+
+test "attachment runtime contract stays generic" {
+  let contract = @moonap.attachment_runtime_contract()
+  let encoded = contract.to_json().stringify()
+  assert_true(contract.supported_file_types.contains("fastq"))
+  assert_true(contract.supported_file_types.contains("csv"))
+  assert_true(contract.supported_file_types.contains("spreadsheet"))
+  assert_true(encoded.contains("ingest_chunk"))
+  assert_true(encoded.contains("is_n_base"))
+}
+
+test "artifact validation policy is owned by MoonBit" {
+  let policy = @moonap.artifact_validation_policy()
+  let encoded = policy.to_json().stringify()
+  assert_true(policy.required_source_files.contains("cmd/main/main.mbt"))
+  assert_true(policy.forbidden_source_patterns.contains("print_string"))
+  assert_true(policy.forbidden_source_patterns.contains(" var "))
+  assert_true(policy.fastq_compat_exports.contains("accumulate_n_bases"))
+  assert_true(policy.max_remote_repair_rounds >= 2)
+  assert_true(encoded.contains("Return only strict JSON"))
+}

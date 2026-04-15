@@ -1,4 +1,5 @@
 import { resolveModelConfig } from "./config.mjs";
+import { getRepairInstructionsText, validateArtifactShapeWithPolicy } from "./artifact-validation-policy.mjs";
 import { MOONBIT_CODEGEN_CONTRACT } from "./codegen-contract.mjs";
 import { MOONBIT_AGENT_SKILL } from "./moonbit-agent-skill.mjs";
 
@@ -254,18 +255,7 @@ function coerceRemoteArtifact(parsed, expectedProtocol = null) {
 }
 
 function validateRemoteArtifact(artifact, expectedProtocol = null) {
-  if (!artifact.moonbitCode || !artifact.moonbitCode.trim()) {
-    throw new Error("Remote model response did not include a valid main MoonBit program.");
-  }
-  if (!Array.isArray(artifact.sourceFiles) || artifact.sourceFiles.length === 0) {
-    throw new Error("Remote model response did not include sourceFiles.");
-  }
-  if (!artifact.sourceFiles.some((file) => file.path === "cmd/main/main.mbt")) {
-    throw new Error("Remote model response did not include cmd/main/main.mbt.");
-  }
-  if (expectedProtocol && artifact.taskKernelProtocol?.protocolName !== expectedProtocol.protocolName) {
-    throw new Error(`Remote model protocol mismatch: expected ${expectedProtocol.protocolName}.`);
-  }
+  validateArtifactShapeWithPolicy(artifact, expectedProtocol);
 }
 
 function parseFileGenerationIntent(prompt) {
@@ -374,12 +364,8 @@ function buildProtocolAwareSystemPrompt(prompt = "", protocol = null) {
 function buildRepairPrompt(content, error, protocol = null) {
   return [
     "Repair the previous MoonAP JSON response.",
-    "Return only strict JSON.",
     `Problem: ${error.message}`,
-    "If the error mentions print_string, replace it with a compile-safe output strategy.",
-    "Use println for normal output.",
-    "For file generation tasks, assemble the full file text or JSON bundle and print it once with println.",
-    "Avoid deprecated numeric conversion chains and unnecessary randomness.",
+    getRepairInstructionsText(),
     protocol ? `Required protocol: ${protocol.protocolName}` : "No explicit protocol required.",
     "Previous response:",
     content,

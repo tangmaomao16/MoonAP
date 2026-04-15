@@ -3,6 +3,8 @@ import http from "node:http";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { PORT, ROOT_DIR } from "./lib/config.mjs";
+import { getArtifactValidationPolicy } from "./lib/artifact-validation-policy.mjs";
+import { getAttachmentRuntimeContract } from "./lib/attachment-runtime-contract.mjs";
 import { generateMoonAPResponse } from "./lib/chat-engine-v3.mjs";
 import { writeFastqBenchmarkArtifacts } from "./lib/fastq-benchmark.mjs";
 import { analyzeLocalFile, inspectLocalFile } from "./lib/local-file-service.mjs";
@@ -10,6 +12,7 @@ import { getFileAnalysisPolicy } from "./lib/file-analysis-policy.mjs";
 import { getLlmRouterPolicy } from "./lib/llm-router-policy.mjs";
 import { generateMockChatReply, generateMockMoonBit } from "./lib/mock-v3.mjs";
 import { compileMoonBitToWasm } from "./lib/moonbit-compiler.mjs";
+import { getMoonBitServerContract } from "./lib/moonbit-server-contract.mjs";
 import { getTaskRouterPolicy } from "./lib/task-router-policy.mjs";
 
 const WEB_ROOT = path.join(ROOT_DIR, "web");
@@ -152,6 +155,11 @@ const server = http.createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === "GET" && request.url === "/api/server-contract") {
+    sendJson(response, 200, { ok: true, contract: getMoonBitServerContract() });
+    return;
+  }
+
   if (request.method === "GET" && request.url === "/api/llm-router-policy") {
     sendJson(response, 200, { ok: true, policy: getLlmRouterPolicy() });
     return;
@@ -164,6 +172,16 @@ const server = http.createServer(async (request, response) => {
 
   if (request.method === "GET" && request.url === "/api/file-analysis-policy") {
     sendJson(response, 200, { ok: true, policy: getFileAnalysisPolicy() });
+    return;
+  }
+
+  if (request.method === "GET" && request.url === "/api/attachment-runtime-contract") {
+    sendJson(response, 200, { ok: true, contract: getAttachmentRuntimeContract() });
+    return;
+  }
+
+  if (request.method === "GET" && request.url === "/api/artifact-validation-policy") {
+    sendJson(response, 200, { ok: true, policy: getArtifactValidationPolicy() });
     return;
   }
 

@@ -174,6 +174,68 @@ pub struct FileAnalysisPolicy {
 } derive(Eq, Debug, ToJson, FromJson)
 
 ///|
+pub struct ServerRoutePolicy {
+  http_method : String
+  path : String
+  category : String
+  summary : String
+  moonbit_owned : Bool
+  requires_adapter : Bool
+} derive(Eq, Debug, ToJson, FromJson)
+
+///|
+pub struct ServerContract {
+  name : String
+  runtime : String
+  static_root : String
+  routes : Array[ServerRoutePolicy]
+  adapter_responsibilities : Array[String]
+  migration_order : Array[String]
+} derive(Eq, Debug, ToJson, FromJson)
+
+///|
+pub struct AgentRuntimePlan {
+  normalized_mode : String
+  experience_mode : String
+  needs_file_analysis : Bool
+  needs_artifact : Bool
+  requested_analysis : String
+  system_prompt : String
+  task_kernel_protocol : TaskKernelProtocol?
+  adapter_notes : Array[String]
+} derive(Eq, Debug, ToJson, FromJson)
+
+///|
+pub struct RuntimeExportPolicy {
+  name : String
+  signature : String
+  required : Bool
+  summary : String
+} derive(Eq, Debug, ToJson, FromJson)
+
+///|
+pub struct AttachmentRuntimeContract {
+  version : String
+  default_lifecycle : Array[String]
+  supported_file_types : Array[String]
+  required_exports : Array[RuntimeExportPolicy]
+  optional_compat_exports : Array[RuntimeExportPolicy]
+  host_responsibilities : Array[String]
+  kernel_responsibilities : Array[String]
+} derive(Eq, Debug, ToJson, FromJson)
+
+///|
+pub struct ArtifactValidationPolicy {
+  required_top_level_keys : Array[String]
+  required_source_files : Array[String]
+  forbidden_source_patterns : Array[String]
+  warning_source_patterns : Array[String]
+  fastq_compat_exports : Array[String]
+  max_remote_repair_rounds : Int
+  repair_instructions : Array[String]
+} derive(Eq, Debug, ToJson, FromJson)
+
+///|
 pub struct AgentContext {
   session_id : String
   messages : Array[ChatMessage]
@@ -447,6 +509,112 @@ pub fn FileAnalysisPolicy::new(
   analyses : Array[AnalysisPolicy],
 ) -> FileAnalysisPolicy {
   { max_preview_bytes, max_preview_lines, file_types, analyses }
+}
+
+///|
+pub fn ServerRoutePolicy::new(
+  http_method : String,
+  path : String,
+  category : String,
+  summary : String,
+  moonbit_owned : Bool,
+  requires_adapter : Bool,
+) -> ServerRoutePolicy {
+  { http_method, path, category, summary, moonbit_owned, requires_adapter }
+}
+
+///|
+pub fn ServerContract::new(
+  name : String,
+  runtime : String,
+  static_root : String,
+  routes : Array[ServerRoutePolicy],
+  adapter_responsibilities : Array[String],
+  migration_order : Array[String],
+) -> ServerContract {
+  {
+    name,
+    runtime,
+    static_root,
+    routes,
+    adapter_responsibilities,
+    migration_order,
+  }
+}
+
+///|
+pub fn AgentRuntimePlan::new(
+  normalized_mode : String,
+  experience_mode : String,
+  needs_file_analysis : Bool,
+  needs_artifact : Bool,
+  requested_analysis : String,
+  system_prompt : String,
+  task_kernel_protocol : TaskKernelProtocol?,
+  adapter_notes : Array[String],
+) -> AgentRuntimePlan {
+  {
+    normalized_mode,
+    experience_mode,
+    needs_file_analysis,
+    needs_artifact,
+    requested_analysis,
+    system_prompt,
+    task_kernel_protocol,
+    adapter_notes,
+  }
+}
+
+///|
+pub fn RuntimeExportPolicy::new(
+  name : String,
+  signature : String,
+  required : Bool,
+  summary : String,
+) -> RuntimeExportPolicy {
+  { name, signature, required, summary }
+}
+
+///|
+pub fn AttachmentRuntimeContract::new(
+  version : String,
+  default_lifecycle : Array[String],
+  supported_file_types : Array[String],
+  required_exports : Array[RuntimeExportPolicy],
+  optional_compat_exports : Array[RuntimeExportPolicy],
+  host_responsibilities : Array[String],
+  kernel_responsibilities : Array[String],
+) -> AttachmentRuntimeContract {
+  {
+    version,
+    default_lifecycle,
+    supported_file_types,
+    required_exports,
+    optional_compat_exports,
+    host_responsibilities,
+    kernel_responsibilities,
+  }
+}
+
+///|
+pub fn ArtifactValidationPolicy::new(
+  required_top_level_keys : Array[String],
+  required_source_files : Array[String],
+  forbidden_source_patterns : Array[String],
+  warning_source_patterns : Array[String],
+  fastq_compat_exports : Array[String],
+  max_remote_repair_rounds : Int,
+  repair_instructions : Array[String],
+) -> ArtifactValidationPolicy {
+  {
+    required_top_level_keys,
+    required_source_files,
+    forbidden_source_patterns,
+    warning_source_patterns,
+    fastq_compat_exports,
+    max_remote_repair_rounds,
+    repair_instructions,
+  }
 }
 
 ///|
@@ -1177,6 +1345,398 @@ pub fn file_analysis_policy() -> FileAnalysisPolicy {
 ///|
 pub fn file_analysis_policy_json() -> String {
   file_analysis_policy().to_json().stringify(indent=2)
+}
+
+///|
+fn moonap_mode_is_supported(mode : String) -> Bool {
+  mode == "chat" || mode == "moonbit-task" || mode == "fastq-agent" || mode == "game-agent"
+}
+
+///|
+pub fn moonap_normalize_mode(mode : String) -> String {
+  if moonap_mode_is_supported(mode) {
+    mode
+  } else {
+    "chat"
+  }
+}
+
+///|
+pub fn moonap_system_prompt_for_mode(mode : String) -> String {
+  match moonap_normalize_mode(mode) {
+    "moonbit-task" =>
+      "The user explicitly wants a MoonBit-first workflow. Generate a practical MoonBit program that is suitable for compilation to WebAssembly and browser execution when possible."
+    "fastq-agent" =>
+      "The user selected a FastQ analysis skill. Keep the logic local-file-first and produce MoonBit code that supports the requested analysis."
+    "game-agent" =>
+      "The user selected a browser mini-game skill. Produce MoonBit code that is compact, understandable, and suitable as a WebAssembly game prototype or gameplay core."
+    _ => "The user is chatting with MoonAP in conversational mode."
+  }
+}
+
+///|
+pub fn moonap_prompt_has_file_analysis_intent(prompt_lower : String) -> Bool {
+  prompt_lower.contains("file") ||
+  prompt_lower.contains("analyze") ||
+  prompt_lower.contains("analysis") ||
+  prompt_lower.contains("count") ||
+  prompt_lower.contains("ratio") ||
+  prompt_lower.contains("quality") ||
+  prompt_lower.contains("csv") ||
+  prompt_lower.contains("json") ||
+  prompt_lower.contains("log") ||
+  prompt_lower.contains("stats") ||
+  prompt_lower.contains("inspect") ||
+  prompt_lower.contains("table") ||
+  prompt_lower.contains("excel")
+}
+
+///|
+pub fn moonap_prompt_has_artifact_intent(prompt_lower : String) -> Bool {
+  prompt_lower.contains("moonbit") ||
+  prompt_lower.contains("webassembly") ||
+  prompt_lower.contains("wasm") ||
+  prompt_lower.contains("game") ||
+  prompt_lower.contains("generate code") ||
+  prompt_lower.contains("compile") ||
+  prompt_lower.contains("run in browser") ||
+  prompt_lower.contains("local file")
+}
+
+///|
+pub fn moonap_requested_analysis_for(
+  prompt_lower : String,
+  file_type : String,
+  mode : String,
+) -> String {
+  let normalized_mode = moonap_normalize_mode(mode)
+  if normalized_mode == "fastq-agent" || file_type == "fastq" || prompt_lower.contains("fastq") {
+    "fastq-n-stats"
+  } else if file_type == "csv" || prompt_lower.contains("csv") {
+    "csv-summary"
+  } else if file_type == "json" || prompt_lower.contains("json") {
+    "json-summary"
+  } else if file_type == "spreadsheet" || prompt_lower.contains("excel") || prompt_lower.contains("xlsx") {
+    "spreadsheet-summary"
+  } else if file_type == "text" || prompt_lower.contains("log") {
+    "text-summary"
+  } else {
+    "auto"
+  }
+}
+
+///|
+pub fn moonap_agent_runtime_plan(
+  prompt_lower : String,
+  selected_mode : String,
+  file_type : String,
+  has_file : Bool,
+) -> AgentRuntimePlan {
+  let mode = moonap_normalize_mode(selected_mode)
+  let needs_file = has_file && (mode == "fastq-agent" || moonap_prompt_has_file_analysis_intent(prompt_lower))
+  let needs_artifact = needs_file ||
+    mode == "moonbit-task" ||
+    mode == "game-agent" ||
+    moonap_prompt_has_artifact_intent(prompt_lower)
+  let requested_analysis = if needs_file {
+    moonap_requested_analysis_for(prompt_lower, file_type, mode)
+  } else {
+    "auto"
+  }
+  AgentRuntimePlan::new(
+    mode,
+    mode,
+    needs_file,
+    needs_artifact,
+    requested_analysis,
+    moonap_system_prompt_for_mode(mode),
+    task_kernel_protocol_for_mode(mode),
+    [
+      "MoonBit owns task classification, artifact routing, and requested analysis selection.",
+      "The host adapter may still perform browser file I/O, HTTP, LLM network calls, and MoonBit compiler process execution.",
+    ],
+  )
+}
+
+///|
+pub fn moonap_agent_runtime_plan_json(
+  prompt_lower : String,
+  selected_mode : String,
+  file_type : String,
+  has_file : Bool,
+) -> String {
+  moonap_agent_runtime_plan(prompt_lower, selected_mode, file_type, has_file).to_json().stringify(indent=2)
+}
+
+///|
+pub fn attachment_runtime_contract() -> AttachmentRuntimeContract {
+  AttachmentRuntimeContract::new(
+    "moonap.attachment-runtime.v1",
+    ["init", "ingest", "finalize"],
+    ["fastq", "csv", "json", "text", "spreadsheet"],
+    [
+      RuntimeExportPolicy::new(
+        "init_state",
+        "() -> Int",
+        false,
+        "Optional numeric state initializer for simple browser adapters.",
+      ),
+      RuntimeExportPolicy::new(
+        "ingest_chunk",
+        "(state : Int, byte : Int) -> Int",
+        false,
+        "Optional generic streaming byte ingestion hook.",
+      ),
+      RuntimeExportPolicy::new(
+        "finalize_result",
+        "(state : Int) -> Int",
+        false,
+        "Optional generic finalizer for compact numeric results.",
+      ),
+    ],
+    [
+      RuntimeExportPolicy::new(
+        "is_n_base",
+        "(code : Int) -> Int",
+        false,
+        "FastQ compatibility helper for browser-local N-base counting.",
+      ),
+      RuntimeExportPolicy::new(
+        "is_gc_base",
+        "(code : Int) -> Int",
+        false,
+        "FastQ compatibility helper for GC counting.",
+      ),
+      RuntimeExportPolicy::new(
+        "is_sequence_state",
+        "(state : Int) -> Int",
+        false,
+        "FastQ compatibility helper for sequence-line detection.",
+      ),
+      RuntimeExportPolicy::new(
+        "next_fastq_state",
+        "(state : Int, code : Int) -> Int",
+        false,
+        "FastQ compatibility state transition helper.",
+      ),
+      RuntimeExportPolicy::new(
+        "accumulate_n_bases",
+        "(current : Int, code : Int, is_seq : Int) -> Int",
+        false,
+        "FastQ compatibility N-base accumulator.",
+      ),
+    ],
+    [
+      "Choose and read local browser files without uploading user data.",
+      "Feed bytes or text chunks into the generated Wasm adapter.",
+      "Validate small smoke tests before running large local files.",
+      "Display large generated outputs as downloadable files instead of dumping them into chat.",
+    ],
+    [
+      "Keep file-specific parsing logic inside generated MoonBit code whenever practical.",
+      "Export small stable functions for browser adapters when direct file handles are unavailable.",
+      "Prefer deterministic, compile-first MoonBit code over clever runtime assumptions.",
+    ],
+  )
+}
+
+///|
+pub fn attachment_runtime_contract_json() -> String {
+  attachment_runtime_contract().to_json().stringify(indent=2)
+}
+
+///|
+pub fn artifact_validation_policy() -> ArtifactValidationPolicy {
+  ArtifactValidationPolicy::new(
+    [
+      "title",
+      "summary",
+      "moonbitCode",
+      "sourceFiles",
+      "projectManifest",
+      "skills",
+      "verificationGate",
+      "taskKernelProtocol",
+    ],
+    ["cmd/main/main.mbt"],
+    [
+      "print_string",
+      "raw.trim().replace",
+      " var ",
+      "\nvar ",
+      "\tvar ",
+      "@lib.",
+      "String.chars",
+      ".chars()",
+    ],
+    [
+      "Char::from_int",
+      ".to_int().to_double()",
+      "unsafe",
+    ],
+    [
+      "is_n_base",
+      "is_gc_base",
+      "is_sequence_state",
+      "next_fastq_state",
+      "accumulate_read_count",
+      "accumulate_total_bases",
+      "accumulate_n_bases",
+      "accumulate_gc_bases",
+      "update_longest_read",
+      "update_shortest_read",
+    ],
+    3,
+    [
+      "Return only strict JSON; do not use Markdown fences.",
+      "Always include sourceFiles and cmd/main/main.mbt.",
+      "Use println for visible output; never use print_string.",
+      "Use let for immutable bindings and avoid var syntax.",
+      "Do not reference @lib or external package aliases unless matching package files exist.",
+      "For file generation tasks, print only the generated file content or JSON bundle.",
+      "For browser-local attachment tasks, prefer small exported numeric helpers or the generic init/ingest/finalize lifecycle.",
+      "Keep MoonBit code simple, deterministic, and compile-first.",
+    ],
+  )
+}
+
+///|
+pub fn artifact_validation_policy_json() -> String {
+  artifact_validation_policy().to_json().stringify(indent=2)
+}
+
+///|
+pub fn moonap_server_contract() -> ServerContract {
+  ServerContract::new(
+    "MoonAP MoonBit-first server",
+    "MoonBit owns server policy and contracts; Node remains a thin HTTP, filesystem, process, and browser-static adapter.",
+    "web",
+    [
+      ServerRoutePolicy::new(
+        "GET",
+        "/api/health",
+        "runtime",
+        "Expose server health and local MoonBit toolchain version.",
+        false,
+        true,
+      ),
+      ServerRoutePolicy::new(
+        "GET",
+        "/api/server-contract",
+        "moonbit-contract",
+        "Expose this MoonBit-owned server route contract.",
+        true,
+        true,
+      ),
+      ServerRoutePolicy::new(
+        "GET",
+        "/api/llm-router-policy",
+        "moonbit-policy",
+        "Expose cross-provider LLM routing policy authored in MoonBit.",
+        true,
+        true,
+      ),
+      ServerRoutePolicy::new(
+        "GET",
+        "/api/task-router-policy",
+        "moonbit-policy",
+        "Expose generic task routing policy authored in MoonBit.",
+        true,
+        true,
+      ),
+      ServerRoutePolicy::new(
+        "GET",
+        "/api/file-analysis-policy",
+        "moonbit-policy",
+        "Expose file type and analysis policy authored in MoonBit.",
+        true,
+        true,
+      ),
+      ServerRoutePolicy::new(
+        "GET",
+        "/api/attachment-runtime-contract",
+        "moonbit-contract",
+        "Expose generic browser-local attachment runtime expectations authored in MoonBit.",
+        true,
+        true,
+      ),
+      ServerRoutePolicy::new(
+        "GET",
+        "/api/artifact-validation-policy",
+        "moonbit-policy",
+        "Expose MoonBit-owned artifact validation and repair policy.",
+        true,
+        true,
+      ),
+      ServerRoutePolicy::new(
+        "POST",
+        "/api/chat",
+        "agent-orchestration",
+        "Run the MoonAP conversation, LLM routing, code generation, repair, and artifact compile flow.",
+        false,
+        true,
+      ),
+      ServerRoutePolicy::new(
+        "POST",
+        "/api/files/inspect",
+        "file-adapter",
+        "Inspect a local server-side file path using MoonBit-owned file policy.",
+        false,
+        true,
+      ),
+      ServerRoutePolicy::new(
+        "POST",
+        "/api/files/analyze",
+        "file-adapter",
+        "Analyze a local server-side file using MoonBit-owned file policy and JS adapter execution.",
+        false,
+        true,
+      ),
+      ServerRoutePolicy::new(
+        "POST",
+        "/api/browser-analysis/artifact",
+        "browser-local-analysis",
+        "Compile an artifact for browser-local file analysis without uploading browser file contents.",
+        false,
+        true,
+      ),
+      ServerRoutePolicy::new(
+        "POST",
+        "/api/artifacts/compile",
+        "compiler-adapter",
+        "Compile generated MoonBit source files to WebAssembly with strict or fallback behavior.",
+        false,
+        true,
+      ),
+      ServerRoutePolicy::new(
+        "GET",
+        "/*",
+        "static-web",
+        "Serve the MoonAP browser UI.",
+        false,
+        true,
+      ),
+    ],
+    [
+      "HTTP request parsing and response streaming",
+      "CORS and static file serving",
+      "Browser API key storage remains in the browser, not on the server",
+      "Filesystem access for explicit local server paths",
+      "MoonBit compiler process execution",
+      "Network calls to user-configured LLM providers when the browser path cannot be used",
+    ],
+    [
+      "Move all route policy, task policy, LLM policy, file policy, and codegen contracts to MoonBit",
+      "Move request classification and artifact validation rules to MoonBit",
+      "Move local file analysis kernels to MoonBit-generated Wasm or MoonBit JS target",
+      "Replace the Node HTTP adapter only after MoonBit has a stable server/runtime story for this deployment",
+    ],
+  )
+}
+
+///|
+pub fn moonap_server_contract_json() -> String {
+  moonap_server_contract().to_json().stringify(indent=2)
 }
 
 ///|

@@ -2,15 +2,8 @@ import { resolveModelConfig, useRemoteModel } from "./config.mjs";
 import { analyzeLocalFile, inspectLocalFile } from "./local-file-service.mjs";
 import { generateMockChatReply, generateMockMoonBit } from "./mock-v3.mjs";
 import { generateMoonBitProgram, generateTextReply } from "./openai-compatible-v2.mjs";
-import { getTaskKernelProtocol } from "./task-kernel-protocol.mjs";
+import { buildAgentRuntimePlan } from "./agent-runtime-plan.mjs";
 import { synthesisMetadataFor } from "./synthesis-metadata.mjs";
-import {
-  modeNeedsArtifact as policyModeNeedsArtifact,
-  modeSystemPrompt as policyModeSystemPrompt,
-  normalizeTaskMode,
-  requestedAnalysisFor,
-  wantsFileAnalysis as policyWantsFileAnalysis,
-} from "./task-router-policy.mjs";
 
 const NO_LLM_MARKER = "[No LLM connecting now!]";
 
@@ -48,10 +41,10 @@ function modeSystemPrompt(mode) {
   return "The user is chatting with MoonAP in conversational mode.";
 }
 
-function buildContextPrompt(prompt, fileInfo, analysis, mode) {
+function buildContextPrompt(prompt, fileInfo, analysis, plan) {
   const lines = [
-    `MoonAP mode: ${mode}`,
-    policyModeSystemPrompt(mode),
+    `MoonAP mode: ${plan.normalizedMode}`,
+    plan.systemPrompt,
     `User request:\n${prompt}`,
   ];
   if (fileInfo) {
@@ -138,51 +131,49 @@ function withFallbackWarning(text, warning) {
 
 export async function generateMoonAPResponse({ prompt, history = [], filePath = "", llmConfig = {}, selectedMode = "chat" }) {
   const resolvedConfig = resolveModelConfig(llmConfig);
-  const mode = normalizeTaskMode(selectedMode);
   const trimmedPath = String(filePath || "").trim();
   const fileInfo = trimmedPath ? await inspectLocalFile(trimmedPath) : null;
-  const analysisMode = mode === "fastq-agent" ? Boolean(fileInfo) : policyWantsFileAnalysis(prompt, fileInfo);
-  const artifactMode = analysisMode || policyModeNeedsArtifact(mode, prompt);
+  const plan = buildAgentRuntimePlan({ prompt, selectedMode, fileInfo });
   let analysis = null;
 
-  if (analysisMode && fileInfo) {
+  if (plan.needsFileAnalysis && fileInfo) {
     analysis = await analyzeLocalFile({
       filePath: fileInfo.path,
-      requestedAnalysis: requestedAnalysisFor(prompt, fileInfo, mode),
+      requestedAnalysis: plan.requestedAnalysis,
     });
   }
 
-  if (mode === "fastq-agent" && !fileInfo) {
+  if (plan.normalizedMode === "fastq-agent" && !fileInfo) {
     return {
       mode: "chat",
-      experienceMode: mode,
-      assistant: { role: "assistant", content: withNoLlmMarker(buildMissingFileReply(mode)) },
+      experienceMode: plan.experienceMode,
+      assistant: { role: "assistant", content: withNoLlmMarker(buildMissingFileReply(plan.normalizedMode)) },
       artifact: null,
       fileInfo,
       analysis: null,
     };
   }
 
-  if (!artifactMode) {
+  if (!plan.needsArtifact) {
     let reply;
     if (useRemoteModel(resolvedConfig)) {
       try {
-        reply = await generateTextReply(buildContextPrompt(prompt, fileInfo, null, mode), history, resolvedConfig);
+        reply = await generateTextReply(buildContextPrompt(prompt, fileInfo, null, plan), history, resolvedConfig);
       } catch (error) {
         reply = withNoLlmMarker(
           withFallbackWarning(
-            generateMockChatReply(prompt, { fileInfo, selectedMode: mode }),
+            generateMockChatReply(prompt, { fileInfo, selectedMode: plan.normalizedMode }),
             `Remote chat failed, so MoonAP switched to local fallback: ${error instanceof Error ? error.message : String(error)}`,
           ),
         );
       }
     } else {
-      reply = withNoLlmMarker(generateMockChatReply(prompt, { fileInfo, selectedMode: mode }));
+      reply = withNoLlmMarker(generateMockChatReply(prompt, { fileInfo, selectedMode: plan.normalizedMode }));
     }
 
     return {
       mode: "chat",
-      experienceMode: mode,
+      experienceMode: plan.experienceMode,
       assistant: { role: "assistant", content: reply },
       artifact: null,
       fileInfo,
@@ -195,41 +186,41 @@ export async function generateMoonAPResponse({ prompt, history = [], filePath = 
     try {
       artifact = attachSynthesisMetadata({
         ...(await generateMoonBitProgram(
-          buildContextPrompt(prompt, fileInfo, analysis, mode),
+          buildContextPrompt(prompt, fileInfo, analysis, plan),
           history,
           resolvedConfig,
-          getTaskKernelProtocol(mode),
+          plan.taskKernelProtocol,
         )),
         adapter: "openai-compatible",
-      }, mode, fileInfo, analysis);
+      }, plan.normalizedMode, fileInfo, analysis);
     } catch (error) {
       artifact = attachSynthesisMetadata({
-        ...generateMockMoonBit(prompt, { fileInfo, analysis, selectedMode: mode }),
+        ...generateMockMoonBit(prompt, { fileInfo, analysis, selectedMode: plan.normalizedMode }),
         adapter: "mock-fallback",
         warning: `Remote model request failed, so MoonAP fell back to the local generator: ${error.message}`,
-      }, mode, fileInfo, analysis);
+      }, plan.normalizedMode, fileInfo, analysis);
     }
   } else {
     artifact = attachSynthesisMetadata({
-      ...generateMockMoonBit(prompt, { fileInfo, analysis, selectedMode: mode }),
+      ...generateMockMoonBit(prompt, { fileInfo, analysis, selectedMode: plan.normalizedMode }),
       adapter: "mock",
-    }, mode, fileInfo, analysis);
+    }, plan.normalizedMode, fileInfo, analysis);
   }
 
   return {
     mode: "analysis",
-    experienceMode: mode,
+    experienceMode: plan.experienceMode,
     assistant: {
       role: "assistant",
       content:
         artifact?.warning && artifact.adapter !== "openai-compatible"
           ? withNoLlmMarker(
               withFallbackWarning(
-                generateMockChatReply(prompt, { fileInfo, analysis, selectedMode: mode, artifact }),
+                generateMockChatReply(prompt, { fileInfo, analysis, selectedMode: plan.normalizedMode, artifact }),
                 artifact.warning,
               ),
             )
-          : generateMockChatReply(prompt, { fileInfo, analysis, selectedMode: mode, artifact }),
+          : generateMockChatReply(prompt, { fileInfo, analysis, selectedMode: plan.normalizedMode, artifact }),
     },
     artifact,
     fileInfo,
