@@ -82,6 +82,15 @@ async function compileArtifactWithFallback({ artifact, prompt, fileInfo, analysi
   }
 }
 
+async function compileArtifactStrict(artifact) {
+  if (!artifact?.moonbitCode && !artifact?.sourceFiles?.length) {
+    return { artifact: null, compiled: null };
+  }
+
+  const compiled = await compileMoonBitToWasm(artifact);
+  return { artifact, compiled };
+}
+
 async function serveStaticFile(requestPath, response) {
   const normalized = requestPath === "/" ? "/chat.html" : requestPath;
   const filePath = path.join(WEB_ROOT, normalized);
@@ -312,6 +321,7 @@ const server = http.createServer(async (request, response) => {
       const body = await readJsonBody(request);
       const prompt = String(body.prompt || "").trim() || "Generate a MoonBit workflow.";
       const selectedMode = String(body.selectedMode || "chat").trim();
+      const noFallback = body.noFallback === true;
       const fileInfo = body.fileInfo && typeof body.fileInfo === "object" ? body.fileInfo : null;
       const analysis = body.analysis && typeof body.analysis === "object" ? body.analysis : null;
       const incomingArtifact = body.artifact && typeof body.artifact === "object" ? body.artifact : null;
@@ -326,13 +336,15 @@ const server = http.createServer(async (request, response) => {
           }
         : generateMockMoonBit(prompt, { fileInfo, analysis, selectedMode });
 
-      const compiledResult = await compileArtifactWithFallback({
-        artifact: mergedArtifact,
-        prompt,
-        fileInfo,
-        analysis,
-        selectedMode,
-      });
+      const compiledResult = noFallback
+        ? await compileArtifactStrict(mergedArtifact)
+        : await compileArtifactWithFallback({
+            artifact: mergedArtifact,
+            prompt,
+            fileInfo,
+            analysis,
+            selectedMode,
+          });
 
       sendJson(response, 200, {
         ok: true,
@@ -346,6 +358,14 @@ const server = http.createServer(async (request, response) => {
           : null,
       });
     } catch (error) {
+      if (request.url === "/api/artifacts/compile") {
+        const bodyText = error instanceof Error ? error.message : String(error);
+        sendJson(response, 422, {
+          ok: false,
+          error: bodyText,
+        });
+        return;
+      }
       sendJson(response, 500, {
         ok: false,
         error: error instanceof Error ? error.message : String(error),

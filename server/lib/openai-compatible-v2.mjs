@@ -167,6 +167,18 @@ function normalizeSkills(skills) {
     }));
 }
 
+function normalizeGeneratedDownloads(downloads) {
+  return (Array.isArray(downloads) ? downloads : [])
+    .filter((item) => item && typeof item === "object" && item.filename)
+    .map((item) => ({
+      filename: String(item.filename).trim(),
+      contentType: String(item.contentType || "text/plain;charset=utf-8").trim(),
+      outputMode: String(item.outputMode || (downloads.length > 1 ? "json-bundle" : "raw")).trim(),
+      description: String(item.description || "").trim(),
+    }))
+    .filter((item) => item.filename);
+}
+
 function normalizeTaskKernelProtocol(protocol, expectedProtocol) {
   const source = protocol && typeof protocol === "object" ? protocol : {};
   if (!expectedProtocol) {
@@ -223,6 +235,7 @@ function coerceRemoteArtifact(parsed, expectedProtocol = null) {
   const moonbitCode = mainFile?.content || fallbackMain;
   const verificationGate = normalizeVerificationGate(parsed?.verificationGate);
   const skills = normalizeSkills(parsed?.skills);
+  const generatedDownloads = normalizeGeneratedDownloads(parsed?.generatedDownloads);
   const taskKernelProtocol = normalizeTaskKernelProtocol(parsed?.taskKernelProtocol, expectedProtocol);
   const projectManifest = buildProjectManifest(sourceFiles, parsed?.projectManifest, verificationGate, skills, taskKernelProtocol);
 
@@ -233,6 +246,7 @@ function coerceRemoteArtifact(parsed, expectedProtocol = null) {
     sourceFiles,
     projectManifest,
     skills,
+    generatedDownloads,
     verificationGate,
     taskKernelProtocol,
   };
@@ -253,7 +267,59 @@ function validateRemoteArtifact(artifact, expectedProtocol = null) {
   }
 }
 
-function buildProtocolAwareSystemPrompt(protocol = null) {
+function parseFileGenerationIntent(prompt) {
+  const text = String(prompt || "").trim();
+  const normalized = text.toLowerCase();
+  const wantsGeneration = /generate|create|make|simulate|synthetic|mock|produce|export|download|鐢熸垚|鍒涘缓|妯℃嫙/.test(normalized);
+  const wantsFile = /file|files|fastq|fasta|csv|jsonl?|txt|log|dataset|鏂囦欢|鏁版嵁/.test(normalized);
+  if (!wantsGeneration || !wantsFile) {
+    return null;
+  }
+
+  const explicitSizes = Array.from(normalized.matchAll(/(\d+(?:\.\d+)?)\s*mb/g))
+    .map((match) => Number(match[1]))
+    .filter((value) => Number.isFinite(value) && value > 0);
+
+  return {
+    fileType: /fastq|\.fastq|\.fq/.test(normalized) ? "fastq" : "text",
+    sizesMb: explicitSizes.length > 0 ? Array.from(new Set(explicitSizes)).sort((a, b) => a - b) : [1],
+  };
+}
+
+function buildGeneratedFilePromptBlock(prompt) {
+  const request = parseFileGenerationIntent(prompt);
+  if (!request) {
+    return "";
+  }
+
+  const sizesLabel = request.sizesMb.map((size) => `${size}MB`).join(", ");
+  if (request.fileType === "fastq") {
+    return [
+      "This request is asking for downloadable synthetic FastQ files.",
+      `Requested target size(s): ${sizesLabel}.`,
+      "Add generatedDownloads to the JSON artifact.",
+      "If one file is requested, use generatedDownloads = [{ filename, contentType, outputMode: \"raw\", description }].",
+      "If multiple files are requested, use generatedDownloads entries for each file and set outputMode to \"json-bundle\".",
+      "When outputMode is raw, the program must print only FASTQ file content to stdout.",
+      "When outputMode is json-bundle, the program must print one JSON object like {\"files\":[{\"filename\":\"...\",\"content\":\"...\"}]} and nothing else.",
+      "Use standard 4-line FASTQ records.",
+      "Line 1 starts with @ and may use an Illumina-style identifier.",
+      "Line 2 is the nucleotide sequence.",
+      "Line 3 is a single + line.",
+      "Line 4 is a Phred+33 quality string with exactly the same number of characters as line 2.",
+      "Include realistic N bases in the synthetic reads by default unless the user explicitly asks for zero Ns.",
+      "Use a mixed but nonzero N ratio, roughly around 5% to 10%, so the file is useful for FastQ quality analysis benchmarks.",
+    ].join("\n");
+  }
+
+  return [
+    "This request is asking for downloadable generated files.",
+    `Requested target size(s): ${sizesLabel}.`,
+    "Add generatedDownloads to the JSON artifact.",
+  ].join("\n");
+}
+
+function buildProtocolAwareSystemPrompt(prompt = "", protocol = null) {
   const requiredKeys = [
     "title",
     "summary",
@@ -278,6 +344,33 @@ function buildProtocolAwareSystemPrompt(protocol = null) {
       ].join("\n")
     : "No explicit task kernel protocol was provided. Use a whole-file MoonBit workflow artifact.";
 
+  const fileStructureBlock = protocol?.protocolName === "moonap.workflow.whole-file.v1"
+    ? [
+        "Expected file structure for workflow tasks:",
+        "- cmd/main/main.mbt",
+        "- cmd/main/agent_spec.mbt",
+        "- cmd/main/session_context.mbt",
+        "main.mbt should call helper functions defined in the other two files.",
+        "The program should print a request summary plus a session or context label.",
+      ].join("\n")
+    : protocol?.protocolName === "moonap.browser.interactive.v1"
+      ? [
+          "Expected file structure for browser game tasks:",
+          "- cmd/main/main.mbt",
+          "- cmd/main/game_state.mbt",
+          "- cmd/main/game_loop.mbt",
+          "main.mbt should call helper functions from the other files.",
+        ].join("\n")
+      : protocol?.protocolName === "moonap.fastq.streaming.v1"
+        ? [
+            "Expected file structure for FastQ tasks:",
+            "- cmd/main/main.mbt",
+            "- cmd/main/fastq_stats.mbt",
+            "- cmd/main/fastq_chunking.mbt",
+            "Optionally add cmd/main/fastq_wasm_runtime.mbt when exporting browser helpers.",
+          ].join("\n")
+        : "Prefer a small multi-file project whose files are actually used by main.mbt.";
+
   return [
     "You are MoonAP, an expert MoonBit code generator.",
     MOONBIT_AGENT_SKILL,
@@ -287,15 +380,25 @@ function buildProtocolAwareSystemPrompt(protocol = null) {
     "Prefer a single-package project rooted at cmd/main whenever possible.",
     "If you create extra package directories such as lib or runtime, each directory with .mbt files must be a valid MoonBit package and imports must match those directory names.",
     "Do not reference packages like @lib unless matching source files exist in that package directory.",
+    "For workflow and utility tasks, prefer 2-3 small source files instead of a single giant file.",
+    "Put reusable logic in helper files under cmd/main and make main.mbt call those helpers.",
+    "The generated program must print a visible result to stdout when the wasm entrypoint runs.",
+    "Do not use print_string. It is not available here.",
+    "Use println for normal visible output.",
+    "For downloadable file generation tasks, build the full output string or JSON bundle and print it once at the end with println.",
+    "Avoid random-number APIs or numeric reinterpret tricks unless absolutely required. Prefer deterministic generation from the record index.",
     "moonbitCode must still be present and match the main entry program.",
     "projectManifest must describe the synthesized multi-file MoonBit project.",
     "verificationGate must be an array of checks with name, level, passed, detail.",
     "skills must be an array of reusable skill records.",
+    "Optional key: generatedDownloads. Use it when the task should create downloadable files from Wasm output.",
     "taskKernelProtocol must be present and must match the requested protocol exactly when one is provided.",
     "Generate MoonBit code that follows the protocol lifecycle: init -> ingest -> finalize.",
     "Prefer simple MoonBit 0.9-compatible code. Avoid StringView replace calls such as raw.trim().replace(...); use raw.trim().to_string() or other clearly compatible forms.",
     "Do not return markdown fences or explanations outside the JSON object.",
     protocolBlock,
+    fileStructureBlock,
+    buildGeneratedFilePromptBlock(prompt),
   ].join("\n");
 }
 
@@ -304,6 +407,10 @@ function buildRepairPrompt(content, error, protocol = null) {
     "Repair the previous MoonAP JSON response.",
     "Return only strict JSON.",
     `Problem: ${error.message}`,
+    "If the error mentions print_string, replace it with a compile-safe output strategy.",
+    "Use println for normal output.",
+    "For file generation tasks, assemble the full file text or JSON bundle and print it once with println.",
+    "Avoid deprecated numeric conversion chains and unnecessary randomness.",
     protocol ? `Required protocol: ${protocol.protocolName}` : "No explicit protocol required.",
     "Previous response:",
     content,
@@ -318,7 +425,7 @@ async function requestMoonBitArtifact(prompt, history, llmConfig, protocol = nul
     messages: [
       {
         role: "system",
-        content: buildProtocolAwareSystemPrompt(protocol),
+        content: buildProtocolAwareSystemPrompt(prompt, protocol),
       },
       ...history.map((item) => ({ role: item.role, content: item.content })),
       { role: "user", content: prompt },

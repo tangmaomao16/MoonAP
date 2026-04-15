@@ -10,6 +10,7 @@ import { generateMockMoonBit } from "./mock-v3.mjs";
 import { compileMoonBitToWasm } from "./moonbit-compiler.mjs";
 
 const BENCHMARK_ROOT = path.join(ROOT_DIR, ".moonap-artifacts", "benchmarks");
+const SAMPLES_ROOT = path.join(ROOT_DIR, "samples");
 
 const DEFAULT_CASES = [
   { id: "sample-demo", reads: 3, readLength: 10, tier: "demo" },
@@ -104,6 +105,54 @@ async function runCase(tempDir, benchmarkCase) {
   return {
     id: benchmarkCase.id,
     tier: benchmarkCase.tier,
+    source: benchmarkCase.source || "synthetic",
+    filePath: fileInfo.path,
+    sizeBytes: fileInfo.sizeBytes,
+    sizeLabel: formatBytes(fileInfo.sizeBytes),
+    reads: analysis.metrics.readCount,
+    totalBases: analysis.metrics.totalBases,
+    nRatio: analysis.metrics.nRatio,
+    gcRatio: analysis.metrics.gcRatio,
+    averageReadLength: analysis.metrics.averageReadLength,
+    recommendedChunkSizes: analysis.benchmarkPlan.recommendedChunkSizes,
+    estimatedChunksAtCurrentSize: analysis.benchmarkPlan.estimatedChunksAtCurrentSize,
+    durationMs,
+    throughputMiBPerSecond: durationMs > 0 ? sizeMiB / (durationMs / 1000) : 0,
+    summary: analysis.summary,
+    benchmarkReport: analysis.benchmarkReport,
+    analysis,
+    fileInfo,
+  };
+}
+
+async function listSampleFastqFiles() {
+  try {
+    const entries = await fsp.readdir(SAMPLES_ROOT, { withFileTypes: true });
+    return entries
+      .filter((entry) => entry.isFile())
+      .map((entry) => entry.name)
+      .filter((name) => /\.(fastq|fq)$/i.test(name))
+      .sort((a, b) => a.localeCompare(b));
+  } catch {
+    return [];
+  }
+}
+
+async function runSampleCase(fileName) {
+  const filePath = path.join(SAMPLES_ROOT, fileName);
+  const fileInfo = await inspectLocalFile(filePath);
+  const startedAt = performance.now();
+  const analysis = await analyzeLocalFile({
+    filePath: fileInfo.path,
+    requestedAnalysis: "fastq-n-stats",
+  });
+  const durationMs = performance.now() - startedAt;
+  const sizeMiB = fileInfo.sizeBytes / (1024 * 1024);
+
+  return {
+    id: path.parse(fileName).name,
+    tier: fileInfo.sizeBytes >= 1024 * 1024 ? "saved-sample-large" : "saved-sample",
+    source: "sample",
     filePath: fileInfo.path,
     sizeBytes: fileInfo.sizeBytes,
     sizeLabel: formatBytes(fileInfo.sizeBytes),
@@ -133,18 +182,19 @@ function buildMarkdownReport({ moonVersion, generatedAt, cases, compileValidatio
     "",
     "## Summary Table",
     "",
-    "| Case | Tier | Size | Reads | N Ratio | GC Ratio | Duration (ms) | Throughput (MiB/s) | Chunk Sizes |",
-    "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |",
+    "| Case | Source | Tier | Size | Reads | N Ratio | GC Ratio | Duration (ms) | Throughput (MiB/s) | Chunk Sizes |",
+    "| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |",
   ];
 
   const tableRows = cases.map((item) =>
-    `| ${item.id} | ${item.tier} | ${item.sizeLabel} | ${item.reads} | ${(item.nRatio * 100).toFixed(4)}% | ${(item.gcRatio * 100).toFixed(4)}% | ${item.durationMs.toFixed(2)} | ${item.throughputMiBPerSecond.toFixed(2)} | ${item.recommendedChunkSizes.join(" / ")} |`
+    `| ${item.id} | ${item.source} | ${item.tier} | ${item.sizeLabel} | ${item.reads} | ${(item.nRatio * 100).toFixed(4)}% | ${(item.gcRatio * 100).toFixed(4)}% | ${item.durationMs.toFixed(2)} | ${item.throughputMiBPerSecond.toFixed(2)} | ${item.recommendedChunkSizes.join(" / ")} |`
   );
 
   const caseSections = cases.flatMap((item) => [
     "",
     `## Case: ${item.id}`,
     "",
+    `- source: ${item.source}`,
     `- file: ${item.filePath}`,
     `- size: ${item.sizeBytes} bytes`,
     `- reads: ${item.reads}`,
@@ -171,7 +221,7 @@ function buildMarkdownReport({ moonVersion, generatedAt, cases, compileValidatio
   return [...header, ...tableRows, ...caseSections, ...compileSection, ""].join("\n");
 }
 
-export async function runFastqBenchmarkSuite({ cases = DEFAULT_CASES, compileArtifact = true } = {}) {
+export async function runFastqBenchmarkSuite({ cases = DEFAULT_CASES, compileArtifact = true, includeSamples = true } = {}) {
   await fsp.mkdir(TEMP_ROOT, { recursive: true });
   const tempDir = await fsp.mkdtemp(path.join(TEMP_ROOT, "fastq-benchmark-"));
   const moonVersion = await detectMoonVersion();
@@ -179,6 +229,13 @@ export async function runFastqBenchmarkSuite({ cases = DEFAULT_CASES, compileArt
 
   for (const benchmarkCase of cases) {
     results.push(await runCase(tempDir, benchmarkCase));
+  }
+
+  if (includeSamples) {
+    const sampleFiles = await listSampleFastqFiles();
+    for (const fileName of sampleFiles) {
+      results.push(await runSampleCase(fileName));
+    }
   }
 
   let compileValidation = {
@@ -207,6 +264,7 @@ export async function runFastqBenchmarkSuite({ cases = DEFAULT_CASES, compileArt
     moonVersion,
     cases: results.map((item) => ({
       id: item.id,
+      source: item.source,
       tier: item.tier,
       filePath: item.filePath,
       sizeBytes: item.sizeBytes,

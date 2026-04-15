@@ -15,7 +15,7 @@
         <div class="rail-actions">
           <button id="open-skill-library" class="rail-button" type="button" aria-label="Skill Library">SKILL</button>
           <button id="open-settings-button" class="rail-button" type="button" aria-label="LLM API Settings">LLM</button>
-          <button id="open-inspector-button" class="rail-button hidden" type="button" aria-label="Results and Reports">R</button>
+          <button id="open-inspector-button" class="rail-button" type="button" aria-label="Results and Progress">LOG</button>
         </div>
         <div class="rail-footer hidden">
           <span id="moon-version" class="mini-badge">MoonBit: checking</span>
@@ -41,7 +41,7 @@
             <span id="api-banner-badge" class="mini-badge cloud-badge">Needs API</span>
             <div>
               <strong id="api-banner-title">Connect your LLM API</strong>
-              <p id="api-banner-copy" class="supporting-text">Use your GLM 5.1 or compatible API for real cloud chat. Without an API key, open the Skill Library and run built-in skills.</p>
+              <p id="api-banner-copy" class="supporting-text">Use your Gemini or compatible API for real cloud chat. Without an API key, open the Skill Library and run built-in skills.</p>
             </div>
           </section>
         </div>
@@ -118,11 +118,12 @@
           </div>
           <textarea id="prompt-input" rows="3" placeholder="Ask anything, or tell MoonAP what you want to build."></textarea>
           <div class="composer-actions simple-composer-actions">
-            <div class="composer-shortcuts">
-              <button id="open-settings-button-secondary" class="ghost-button" type="button">LLM</button>
-              <button id="open-skill-library-secondary" class="ghost-button" type="button">SKILL</button>
-              <button id="seed-analysis" class="ghost-button hidden" type="button">FastQ</button>
-            </div>
+              <div class="composer-shortcuts">
+                <button id="open-settings-button-secondary" class="ghost-button" type="button">LLM</button>
+                <button id="open-skill-library-secondary" class="ghost-button" type="button">SKILL</button>
+                <button id="open-progress-button-secondary" class="ghost-button" type="button">PROGRESS</button>
+                <button id="seed-analysis" class="ghost-button hidden" type="button">FastQ</button>
+              </div>
             <button id="send-button" class="primary-button" type="submit">Send</button>
           </div>
         </form>
@@ -220,10 +221,20 @@
                 <span class="mini-badge">advanced</span>
               </summary>
 
-              <section class="subpanel">
-                <div class="panel-header">
-                  <div>
-                    <p class="eyebrow">Sources</p>
+                <section class="subpanel">
+                  <div class="panel-header">
+                    <div>
+                      <p class="eyebrow">Progress</p>
+                      <h2>Behind the scenes</h2>
+                    </div>
+                  </div>
+                  <pre id="progress-log-output">No progress log yet.</pre>
+                </section>
+
+                <section class="subpanel">
+                  <div class="panel-header">
+                    <div>
+                      <p class="eyebrow">Sources</p>
                     <h2>Generated source files</h2>
                   </div>
                 </div>
@@ -296,13 +307,13 @@
           <button id="close-settings-button" class="ghost-button" type="button">Close</button>
         </div>
         <div class="preset-row">
-          <button class="preset-button" type="button" data-preset="siliconflow">
-            <strong>SiliconFlow DeepSeek</strong>
-            <span>SiliconFlow OpenAI-compatible template for DeepSeek-R1-Distill-Qwen-7B</span>
-          </button>
           <button class="preset-button" type="button" data-preset="gemini3pro">
             <strong>Gemini 3 Flash</strong>
             <span>Google Gemini OpenAI-compatible template for MoonAP</span>
+          </button>
+          <button class="preset-button" type="button" data-preset="siliconflow">
+            <strong>SiliconFlow DeepSeek</strong>
+            <span>SiliconFlow OpenAI-compatible template for DeepSeek-R1-Distill-Qwen-7B</span>
           </button>
           <button class="preset-button" type="button" data-preset="glm51">
             <strong>GLM 5.1</strong>
@@ -323,7 +334,7 @@
         </label>
         <label class="field">
           <span>Model</span>
-          <input id="llm-model" type="text" placeholder="glm-5.1" />
+          <input id="llm-model" type="text" placeholder="gemini-3-flash-preview" />
         </label>
         <div class="button-row">
           <button id="save-llm-settings" class="primary-button" type="button">Save API Settings</button>
@@ -339,6 +350,7 @@
           <div>
             <p class="eyebrow">Skill Library</p>
             <h2>Built-in MoonAP skills</h2>
+            <p class="supporting-text">Run local-first FastQ analysis, generate synthetic FastQ benchmark files, or open cloud-backed MoonBit workflows.</p>
           </div>
           <button id="close-skill-library" class="ghost-button" type="button">Close</button>
         </div>

@@ -160,6 +160,8 @@ This writes the latest benchmark artifacts to:
 - `.moonap-artifacts/benchmarks/fastq-benchmark-latest.json`
 - `.moonap-artifacts/benchmarks/fastq-benchmark-latest.md`
 
+When `samples/` contains saved `.fastq` or `.fq` files, the benchmark suite now includes them automatically. This means generated files such as [simulated_5mb.fastq](/C:/my_work/MoonBit_Competition/GitHub/MoonAP/samples/simulated_5mb.fastq) become part of the official MoonAP benchmark evidence instead of living outside the main workflow.
+
 ## Optional Remote Model Configuration
 
 By default, MoonAP can run with local mock generation so the full workflow is still demoable without an API key.
