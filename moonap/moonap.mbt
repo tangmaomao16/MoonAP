@@ -221,8 +221,24 @@ pub struct ServerBootstrap {
   artifact_validation : ArtifactValidationPolicy
   attachment_runtime : AttachmentRuntimeContract
   compiler_plan : CompilerPlan
+  codegen_prompt : CodegenPromptPolicy
   codegen_contract : String
   agent_skill : String
+} derive(Eq, Debug, ToJson, FromJson)
+
+///|
+pub struct CodegenPromptPolicy {
+  system_identity : String
+  chat_system_identity : String
+  no_protocol_fallback : String
+  generic_structure : String
+  workflow_structure : String
+  game_structure : String
+  fastq_structure : String
+  repair_intro : String
+  previous_response_label : String
+  generated_file_rules : Array[String]
+  fastq_generation_rules : Array[String]
 } derive(Eq, Debug, ToJson, FromJson)
 
 ///|
@@ -633,6 +649,7 @@ pub fn ServerBootstrap::new(
   artifact_validation : ArtifactValidationPolicy,
   attachment_runtime : AttachmentRuntimeContract,
   compiler_plan : CompilerPlan,
+  codegen_prompt : CodegenPromptPolicy,
   codegen_contract : String,
   agent_skill : String,
 ) -> ServerBootstrap {
@@ -645,8 +662,38 @@ pub fn ServerBootstrap::new(
     artifact_validation,
     attachment_runtime,
     compiler_plan,
+    codegen_prompt,
     codegen_contract,
     agent_skill,
+  }
+}
+
+///|
+pub fn CodegenPromptPolicy::new(
+  system_identity : String,
+  chat_system_identity : String,
+  no_protocol_fallback : String,
+  generic_structure : String,
+  workflow_structure : String,
+  game_structure : String,
+  fastq_structure : String,
+  repair_intro : String,
+  previous_response_label : String,
+  generated_file_rules : Array[String],
+  fastq_generation_rules : Array[String],
+) -> CodegenPromptPolicy {
+  {
+    system_identity,
+    chat_system_identity,
+    no_protocol_fallback,
+    generic_structure,
+    workflow_structure,
+    game_structure,
+    fastq_structure,
+    repair_intro,
+    previous_response_label,
+    generated_file_rules,
+    fastq_generation_rules,
   }
 }
 
@@ -2011,6 +2058,57 @@ pub fn moonbit_server_runtime_json() -> String {
 }
 
 ///|
+pub fn codegen_prompt_policy() -> CodegenPromptPolicy {
+  CodegenPromptPolicy::new(
+    "You are MoonAP, an expert MoonBit code generator.",
+    "You are MoonAP, a concise and practical assistant. Help in a chat style, and guide users toward local-first MoonBit/Wasm analysis when files are involved.",
+    "No explicit task kernel protocol was provided. Use a whole-file MoonBit workflow artifact.",
+    "Prefer a small multi-file project whose files are actually used by main.mbt.",
+    [
+      "Expected file structure for workflow tasks:",
+      "- cmd/main/main.mbt",
+      "- cmd/main/agent_spec.mbt",
+      "- cmd/main/session_context.mbt",
+      "main.mbt should call helper functions defined in the other two files.",
+      "The program should print a request summary plus a session or context label.",
+    ].iter().join("\n"),
+    [
+      "Expected file structure for browser game tasks:",
+      "- cmd/main/main.mbt",
+      "- cmd/main/game_state.mbt",
+      "- cmd/main/game_loop.mbt",
+      "main.mbt should call helper functions from the other files.",
+    ].iter().join("\n"),
+    [
+      "Expected file structure for FastQ tasks:",
+      "- cmd/main/main.mbt",
+      "- cmd/main/fastq_stats.mbt",
+      "- cmd/main/fastq_chunking.mbt",
+      "Optionally add cmd/main/fastq_wasm_runtime.mbt when exporting browser helpers.",
+    ].iter().join("\n"),
+    "Repair the previous MoonAP JSON response.",
+    "Previous response:",
+    [
+      "This request is asking for downloadable generated files.",
+      "Add generatedDownloads to the JSON artifact.",
+      "Do not dump very large generated files into a chat explanation.",
+      "The Wasm program may print a compact manifest plus the generated file content when explicitly requested.",
+    ],
+    [
+      "If generating FastQ, use the standard four-line record format: header, sequence, plus-line, quality string.",
+      "Quality strings should have the same length as the sequence line.",
+      "Include realistic N bases in synthetic reads by default unless the user explicitly asks for zero Ns.",
+      "Use a mixed but nonzero N ratio, roughly around 5% to 10%, so the file is useful for FastQ quality analysis benchmarks.",
+    ],
+  )
+}
+
+///|
+pub fn codegen_prompt_policy_json() -> String {
+  codegen_prompt_policy().to_json().stringify(indent=2)
+}
+
+///|
 pub fn moonbit_server_bootstrap() -> ServerBootstrap {
   ServerBootstrap::new(
     moonap_server_contract(),
@@ -2021,6 +2119,7 @@ pub fn moonbit_server_bootstrap() -> ServerBootstrap {
     artifact_validation_policy(),
     attachment_runtime_contract(),
     compiler_plan(),
+    codegen_prompt_policy(),
     moonbit_codegen_contract(),
     moonbit_agent_skill(),
   )

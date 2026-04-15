@@ -199,6 +199,7 @@ Already implemented:
 - MoonBit-owned server contract, task router policy, LLM router policy, file analysis policy, artifact validation policy, attachment runtime contract, and compiler plan
 - MoonBit-owned server runtime manifest exposed at `/api/server-runtime`
 - single MoonBit server bootstrap payload exposed at `/api/server-bootstrap` and used by the MoonBit-authored server entry
+- MoonBit-owned LLM prompt policy for chat, MoonBit code generation, repair, and generated-file instructions
 - remaining `server/lib/*.mjs` files are treated as temporary Node platform adapters for HTTP/network/filesystem/process integration, not as the product server entry
 - ChatGPT-style browser interface
 - mode picker for product workflows

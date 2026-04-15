@@ -1,4 +1,5 @@
 import { resolveModelConfig } from "./config.mjs";
+import { fileStructureBlockForProtocol, getCodegenPromptPolicy } from "./codegen-prompt-policy.mjs";
 import { getRepairInstructionsText, validateArtifactShapeWithPolicy } from "./artifact-validation-policy.mjs";
 import { MOONBIT_CODEGEN_CONTRACT } from "./codegen-contract.mjs";
 import { MOONBIT_AGENT_SKILL } from "./moonbit-agent-skill.mjs";
@@ -278,6 +279,7 @@ function parseFileGenerationIntent(prompt) {
 }
 
 function buildGeneratedFilePromptBlock(prompt) {
+  const policy = getCodegenPromptPolicy();
   const request = parseFileGenerationIntent(prompt);
   if (!request) {
     return "";
@@ -286,31 +288,20 @@ function buildGeneratedFilePromptBlock(prompt) {
   const sizesLabel = request.sizesMb.map((size) => `${size}MB`).join(", ");
   if (request.fileType === "fastq") {
     return [
-      "This request is asking for downloadable synthetic FastQ files.",
+      ...policy.generatedFileRules,
       `Requested target size(s): ${sizesLabel}.`,
-      "Add generatedDownloads to the JSON artifact.",
-      "If one file is requested, use generatedDownloads = [{ filename, contentType, outputMode: \"raw\", description }].",
-      "If multiple files are requested, use generatedDownloads entries for each file and set outputMode to \"json-bundle\".",
-      "When outputMode is raw, the program must print only FASTQ file content to stdout.",
-      "When outputMode is json-bundle, the program must print one JSON object like {\"files\":[{\"filename\":\"...\",\"content\":\"...\"}]} and nothing else.",
-      "Use standard 4-line FASTQ records.",
-      "Line 1 starts with @ and may use an Illumina-style identifier.",
-      "Line 2 is the nucleotide sequence.",
-      "Line 3 is a single + line.",
-      "Line 4 is a Phred+33 quality string with exactly the same number of characters as line 2.",
-      "Include realistic N bases in the synthetic reads by default unless the user explicitly asks for zero Ns.",
-      "Use a mixed but nonzero N ratio, roughly around 5% to 10%, so the file is useful for FastQ quality analysis benchmarks.",
+      ...policy.fastqGenerationRules,
     ].join("\n");
   }
 
   return [
-    "This request is asking for downloadable generated files.",
+    ...policy.generatedFileRules,
     `Requested target size(s): ${sizesLabel}.`,
-    "Add generatedDownloads to the JSON artifact.",
   ].join("\n");
 }
 
 function buildProtocolAwareSystemPrompt(prompt = "", protocol = null) {
+  const policy = getCodegenPromptPolicy();
   const protocolBlock = protocol
     ? [
         `Target task kernel protocol: ${protocol.protocolName}`,
@@ -322,52 +313,26 @@ function buildProtocolAwareSystemPrompt(prompt = "", protocol = null) {
         `host responsibilities: ${protocol.hostResponsibilities.join("; ")}`,
         `kernel responsibilities: ${protocol.kernelResponsibilities.join("; ")}`,
       ].join("\n")
-    : "No explicit task kernel protocol was provided. Use a whole-file MoonBit workflow artifact.";
-
-  const fileStructureBlock = protocol?.protocolName === "moonap.workflow.whole-file.v1"
-    ? [
-        "Expected file structure for workflow tasks:",
-        "- cmd/main/main.mbt",
-        "- cmd/main/agent_spec.mbt",
-        "- cmd/main/session_context.mbt",
-        "main.mbt should call helper functions defined in the other two files.",
-        "The program should print a request summary plus a session or context label.",
-      ].join("\n")
-    : protocol?.protocolName === "moonap.browser.interactive.v1"
-      ? [
-          "Expected file structure for browser game tasks:",
-          "- cmd/main/main.mbt",
-          "- cmd/main/game_state.mbt",
-          "- cmd/main/game_loop.mbt",
-          "main.mbt should call helper functions from the other files.",
-        ].join("\n")
-      : protocol?.protocolName === "moonap.fastq.streaming.v1"
-        ? [
-            "Expected file structure for FastQ tasks:",
-            "- cmd/main/main.mbt",
-            "- cmd/main/fastq_stats.mbt",
-            "- cmd/main/fastq_chunking.mbt",
-            "Optionally add cmd/main/fastq_wasm_runtime.mbt when exporting browser helpers.",
-          ].join("\n")
-        : "Prefer a small multi-file project whose files are actually used by main.mbt.";
+    : policy.noProtocolFallback;
 
   return [
-    "You are MoonAP, an expert MoonBit code generator.",
+    policy.systemIdentity,
     MOONBIT_AGENT_SKILL,
     MOONBIT_CODEGEN_CONTRACT,
     protocolBlock,
-    fileStructureBlock,
+    fileStructureBlockForProtocol(protocol),
     buildGeneratedFilePromptBlock(prompt),
   ].join("\n");
 }
 
 function buildRepairPrompt(content, error, protocol = null) {
+  const policy = getCodegenPromptPolicy();
   return [
-    "Repair the previous MoonAP JSON response.",
+    policy.repairIntro,
     `Problem: ${error.message}`,
     getRepairInstructionsText(),
     protocol ? `Required protocol: ${protocol.protocolName}` : "No explicit protocol required.",
-    "Previous response:",
+    policy.previousResponseLabel,
     content,
   ].join("\n\n");
 }
@@ -389,14 +354,14 @@ async function requestMoonBitArtifact(prompt, history, llmConfig, protocol = nul
 }
 
 export async function generateTextReply(prompt, history = [], llmConfig = {}) {
+  const policy = getCodegenPromptPolicy();
   const content = await callChatCompletions({
     llmConfig,
     purpose: "chat",
     messages: [
       {
         role: "system",
-        content:
-          "You are MoonAP, a concise and practical assistant. Help in a chat style, and guide users toward local-first analysis when files are involved.",
+        content: policy.chatSystemIdentity,
       },
       ...history.map((item) => ({ role: item.role, content: item.content })),
       { role: "user", content: prompt },

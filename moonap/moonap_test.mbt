@@ -171,6 +171,18 @@ test "moonbit server bootstrap carries every server policy in one payload" {
   assert_true(encoded.contains("\"llm_router\""))
   assert_true(encoded.contains("\"task_router\""))
   assert_true(encoded.contains("\"artifact_validation\""))
+  assert_true(encoded.contains("\"codegen_prompt\""))
   assert_true(encoded.contains("Return strict JSON"))
   assert_true(encoded.contains("MoonBit 0.9 skill summary"))
+}
+
+test "codegen prompt policy is owned by MoonBit" {
+  let policy = @moonap.codegen_prompt_policy()
+  let encoded = policy.to_json().stringify()
+  assert_true(policy.system_identity.contains("MoonAP"))
+  assert_true(policy.chat_system_identity.contains("local-first"))
+  assert_true(policy.fastq_structure.contains("fastq_stats.mbt"))
+  assert_true(policy.generated_file_rules.length() >= 3)
+  assert_true(policy.fastq_generation_rules.join("\n").contains("N bases"))
+  assert_true(encoded.contains("previous_response_label"))
 }
