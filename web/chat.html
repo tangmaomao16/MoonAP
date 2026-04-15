@@ -84,12 +84,12 @@
           <div id="fastq-action-card" class="action-card">
             <p class="action-title">FastQ skill</p>
             <p id="fastq-action-hint" class="supporting-text">Choose a FastQ file, then let MoonAP run the prepared MoonBit Wasm skill locally in your browser.</p>
-            <div class="action-stack inline-actions">
-              <button id="analyze-browser-file-button" class="primary-button" type="button">Start FastQ Analysis</button>
-              <button id="build-browser-wasm-button" class="ghost-button" type="button">Create Analysis Report</button>
-              <button id="clear-file-button" class="ghost-button" type="button">Clear</button>
+              <div class="action-stack inline-actions">
+                <button id="analyze-browser-file-button" class="primary-button" type="button">Start FastQ Analysis</button>
+                <button id="build-browser-wasm-button" class="ghost-button" type="button">Create Analysis Report</button>
+                <button id="clear-file-button" class="ghost-button" type="button">Clear</button>
+              </div>
             </div>
-          </div>
           <div id="browser-file-summary" class="file-summary">No browser-local file selected.</div>
         </section>
 
@@ -119,6 +119,7 @@
           <textarea id="prompt-input" rows="3" placeholder="Ask anything, or tell MoonAP what you want to build."></textarea>
           <div class="composer-actions simple-composer-actions">
               <div class="composer-shortcuts">
+                <button id="attach-file-button" class="ghost-button" type="button">Attach file</button>
                 <button id="open-settings-button-secondary" class="ghost-button" type="button">LLM</button>
                 <button id="open-skill-library-secondary" class="ghost-button" type="button">SKILL</button>
                 <button id="open-progress-button-secondary" class="ghost-button" type="button">PROGRESS</button>
@@ -126,6 +127,8 @@
               </div>
             <button id="send-button" class="primary-button" type="submit">Send</button>
           </div>
+          <p id="attached-file-banner" class="supporting-text task-status-banner">No file attached.</p>
+          <p id="task-status-banner" class="supporting-text task-status-banner">Ready for the next prompt.</p>
         </form>
 
         <section id="inspector-shell" class="inspector-shell hidden">
@@ -155,36 +158,26 @@
               </ol>
             </section>
 
-            <section class="panel">
-              <div class="panel-header">
-                <div>
-                  <p class="eyebrow">Analysis</p>
-                  <h2>Local analysis</h2>
+              <section class="panel">
+                <div class="panel-header">
+                  <div>
+                    <p class="eyebrow">Task Result</p>
+                    <h2>Current task output</h2>
+                  </div>
                 </div>
-              </div>
-              <pre id="analysis-output">No local analysis yet.</pre>
-            </section>
+                <pre id="analysis-output">No local analysis yet.</pre>
+              </section>
 
-            <section class="panel">
-              <div class="panel-header">
-                <div>
-                  <p class="eyebrow">Benchmark</p>
-                  <h2>Benchmark readiness</h2>
+              <section class="panel">
+                <div class="panel-header">
+                  <div>
+                    <p class="eyebrow">Downloads</p>
+                    <h2>Generated files</h2>
+                  </div>
                 </div>
-              </div>
-              <pre id="benchmark-output">No benchmark profile yet.</pre>
-            </section>
-
-            <section class="panel">
-              <div class="panel-header">
-                <div>
-                  <p class="eyebrow">Report</p>
-                  <h2>Benchmark report</h2>
-                </div>
-              </div>
-              <pre id="benchmark-report-output">No benchmark report yet.</pre>
-            </section>
-          </div>
+                <pre id="download-output">No generated files yet.</pre>
+              </section>
+            </div>
 
           <div id="workbench-report" class="workbench-view hidden">
             <section class="panel">
@@ -229,6 +222,26 @@
                     </div>
                   </div>
                   <pre id="progress-log-output">No progress log yet.</pre>
+                </section>
+
+                <section class="subpanel">
+                  <div class="panel-header">
+                    <div>
+                      <p class="eyebrow">Profile</p>
+                      <h2>Data profile</h2>
+                    </div>
+                  </div>
+                  <pre id="benchmark-output">No benchmark profile yet.</pre>
+                </section>
+
+                <section class="subpanel">
+                  <div class="panel-header">
+                    <div>
+                      <p class="eyebrow">Report</p>
+                      <h2>Analysis notes</h2>
+                    </div>
+                  </div>
+                  <pre id="benchmark-report-output">No benchmark report yet.</pre>
                 </section>
 
                 <section class="subpanel">
@@ -350,7 +363,7 @@
           <div>
             <p class="eyebrow">Skill Library</p>
             <h2>Built-in MoonAP skills</h2>
-            <p class="supporting-text">Run local-first FastQ analysis, generate synthetic FastQ benchmark files, or open cloud-backed MoonBit workflows.</p>
+            <p class="supporting-text">Run local-first FastQ analysis, generate realistic sample files, or open cloud-backed MoonBit workflows.</p>
           </div>
           <button id="close-skill-library" class="ghost-button" type="button">Close</button>
         </div>

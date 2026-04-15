@@ -4,6 +4,7 @@ const form = document.getElementById("chat-form");
 const messages = document.getElementById("messages");
 const promptInput = document.getElementById("prompt-input");
 const sendButton = document.getElementById("send-button");
+const attachFileButton = document.getElementById("attach-file-button");
 const analyzeBrowserFileButton = document.getElementById("analyze-browser-file-button");
 const buildBrowserWasmButton = document.getElementById("build-browser-wasm-button");
 const clearFileButton = document.getElementById("clear-file-button");
@@ -13,10 +14,13 @@ const seedAnalysisButton = document.getElementById("seed-analysis");
 const browserFileInput = document.getElementById("browser-file-input");
 const browserFileSummary = document.getElementById("browser-file-summary");
 const analysisOutput = document.getElementById("analysis-output");
+const downloadOutput = document.getElementById("download-output");
 const codeOutput = document.getElementById("code-output");
 const sourceFilesOutput = document.getElementById("source-files-output");
 const programOutput = document.getElementById("program-output");
 const progressLogOutput = document.getElementById("progress-log-output");
+const attachedFileBanner = document.getElementById("attached-file-banner");
+const taskStatusBanner = document.getElementById("task-status-banner");
 const buildLog = document.getElementById("build-log");
 const artifactTitle = document.getElementById("artifact-title");
 const artifactSummary = document.getElementById("artifact-summary");
@@ -227,6 +231,10 @@ function renderProgressLog() {
     : "No progress log yet.";
 }
 
+function setTaskStatus(message) {
+  taskStatusBanner.textContent = message || "Ready for the next prompt.";
+}
+
 function logProgress(message) {
   const timestamp = new Date().toLocaleTimeString("zh-CN", {
     hour12: false,
@@ -239,6 +247,7 @@ function logProgress(message) {
     progressLogEntries = progressLogEntries.slice(-120);
   }
   renderProgressLog();
+  setTaskStatus(message);
 }
 
 function openProgressInspector() {
@@ -252,12 +261,12 @@ function updateFastqActionState(stage = "choose-file") {
   workflowFocus.classList.toggle("hidden", !isFastqMode);
   fileContextPanel.classList.toggle("hidden", !isFastqMode);
 
-  if (!isFastqMode) {
-    analyzeBrowserFileButton.textContent = "Start FastQ Analysis";
-    buildBrowserWasmButton.textContent = "Create Analysis Report";
-    buildBrowserWasmButton.disabled = true;
-    return;
-  }
+    if (!isFastqMode) {
+      analyzeBrowserFileButton.textContent = "Start FastQ Analysis";
+      buildBrowserWasmButton.textContent = "Create Analysis Report";
+      buildBrowserWasmButton.disabled = true;
+      return;
+    }
 
   workflowFocusTitle.textContent = "FastQ local-first workflow";
 
@@ -265,51 +274,51 @@ function updateFastqActionState(stage = "choose-file") {
     workflowFocusBody.textContent = "Choose a browser-local FastQ file. MoonAP will compile a MoonBit Wasm kernel and run the analysis locally in your browser.";
     workflowFocusStep.textContent = "step: choose file";
     fastqActionHint.textContent = "Choose a FastQ file, then let MoonAP compile a MoonBit Wasm kernel and analyze it locally in the browser.";
-    analyzeBrowserFileButton.textContent = "Start FastQ Analysis";
-    buildBrowserWasmButton.textContent = "Create Analysis Report";
-    buildBrowserWasmButton.disabled = true;
-    return;
-  }
+      analyzeBrowserFileButton.textContent = "Start FastQ Analysis";
+      buildBrowserWasmButton.textContent = "Create Analysis Report";
+      buildBrowserWasmButton.disabled = true;
+      return;
+    }
 
   if (stage === "ready-to-analyze") {
     workflowFocusBody.textContent = "File selected. Start the MoonBit Wasm analysis to produce local metrics, benchmark readiness, and the active analysis kernel.";
     workflowFocusStep.textContent = "step: run analysis";
     fastqActionHint.textContent = "MoonAP is ready to analyze this file with a MoonBit Wasm FastQ kernel.";
-    analyzeBrowserFileButton.textContent = "Start FastQ Analysis";
-    buildBrowserWasmButton.textContent = "Create Analysis Report";
-    buildBrowserWasmButton.disabled = true;
-    return;
-  }
+      analyzeBrowserFileButton.textContent = "Start FastQ Analysis";
+      buildBrowserWasmButton.textContent = "Create Analysis Report";
+      buildBrowserWasmButton.disabled = true;
+      return;
+    }
 
   if (stage === "analyzing") {
     workflowFocusBody.textContent = "MoonAP is compiling a MoonBit Wasm kernel and running browser-local FastQ analysis.";
     workflowFocusStep.textContent = "step: analyzing";
     fastqActionHint.textContent = "MoonAP is turning your FastQ request into a MoonBit Wasm analysis kernel.";
-    analyzeBrowserFileButton.textContent = "Analyzing...";
-    buildBrowserWasmButton.textContent = "Create Analysis Report";
-    buildBrowserWasmButton.disabled = true;
-    return;
-  }
+      analyzeBrowserFileButton.textContent = "Analyzing...";
+      buildBrowserWasmButton.textContent = "Create Analysis Report";
+      buildBrowserWasmButton.disabled = true;
+      return;
+    }
 
   if (stage === "analyzed") {
     workflowFocusBody.textContent = "Analysis is complete. You can now ask follow-up questions or generate a reusable MoonBit analysis report app for this file.";
     workflowFocusStep.textContent = "step: review result";
     fastqActionHint.textContent = "MoonAP finished local FastQ analysis with MoonBit Wasm. You can now generate a reusable analysis report app.";
-    analyzeBrowserFileButton.textContent = "Re-run FastQ Analysis";
-    buildBrowserWasmButton.textContent = "Create Analysis Report";
-    buildBrowserWasmButton.disabled = false;
-    return;
-  }
+      analyzeBrowserFileButton.textContent = "Re-run FastQ Analysis";
+      buildBrowserWasmButton.textContent = "Create Analysis Report";
+      buildBrowserWasmButton.disabled = false;
+      return;
+    }
 
   if (stage === "artifact-ready") {
     workflowFocusBody.textContent = "The analysis report app is ready. You can run the Wasm report, inspect generated MoonBit source files, or continue chatting from this context.";
     workflowFocusStep.textContent = "step: report ready";
     fastqActionHint.textContent = "MoonAP prepared a reusable MoonBit analysis report app for the analyzed FastQ file.";
-    analyzeBrowserFileButton.textContent = "Re-run FastQ Analysis";
-    buildBrowserWasmButton.textContent = "Refresh Analysis Report";
-    buildBrowserWasmButton.disabled = false;
+      analyzeBrowserFileButton.textContent = "Re-run FastQ Analysis";
+      buildBrowserWasmButton.textContent = "Refresh Analysis Report";
+      buildBrowserWasmButton.disabled = false;
+    }
   }
-}
 
 function updateApiBanner() {
   const remoteConfigured = hasRemoteConfig();
@@ -514,6 +523,7 @@ async function handleFastqSampleRequest(prompt, sampleRequest) {
   adapterBadge.textContent = "adapter: built-in-skill";
   experienceBadge.textContent = "workflow: browser-local-fastq-sample-generator";
   analysisOutput.textContent = summary;
+  renderGeneratedDownloads(created);
   selectedWorkbench = "results";
   syncWorkbenchTabs();
   showInspector(true);
@@ -615,6 +625,7 @@ function setMode(mode) {
 function renderBrowserFileInfo(file) {
   if (!file) {
     browserFileSummary.textContent = "No browser-local file selected.";
+    attachedFileBanner.textContent = "No file attached.";
     return;
   }
 
@@ -624,6 +635,7 @@ function renderBrowserFileInfo(file) {
     `<p><strong>Size:</strong> ${file.size} bytes</p>`,
     `<p><strong>Last Modified:</strong> ${new Date(file.lastModified).toLocaleString()}</p>`,
   ].join("");
+  attachedFileBanner.textContent = `Attached file: ${file.name} (${file.size} bytes)`;
 }
 
 function ensureArray(value) {
@@ -746,6 +758,35 @@ function renderBenchmarkReport(report = "") {
   benchmarkReportOutput.textContent = report || "No benchmark report yet.";
 }
 
+function renderGeneratedDownloads(items = []) {
+  const list = ensureArray(items);
+  downloadOutput.textContent = list.length
+    ? list.map((item) => `- ${item}`).join("\n")
+    : "No generated files yet.";
+}
+
+function renderBenchmarkSuiteResult(report, markdown, jsonPath = "", markdownPath = "") {
+  if (!report || !Array.isArray(report.cases)) {
+    renderBenchmarkProfile(null);
+    renderBenchmarkReport(markdown || "");
+    return;
+  }
+
+  const sampleCases = report.cases.filter((item) => item.source === "sample");
+  const syntheticCases = report.cases.filter((item) => item.source !== "sample");
+  benchmarkOutput.textContent = [
+    `generated at = ${report.generatedAt || "unknown"}`,
+    `moon version = ${report.moonVersion || "unknown"}`,
+    `cases = ${report.cases.length}`,
+    `sample-backed cases = ${sampleCases.length}`,
+    `synthetic cases = ${syntheticCases.length}`,
+    `wasm build validation = ${report.compileValidation?.compiled ? "yes" : "no"}`,
+    jsonPath ? `json report = ${jsonPath}` : "",
+    markdownPath ? `markdown report = ${markdownPath}` : "",
+  ].filter(Boolean).join("\n");
+  renderBenchmarkReport(markdown || "No benchmark report yet.");
+}
+
 function normalizeGeneratedDownloads(downloads = []) {
   return ensureArray(downloads)
     .filter((item) => item && typeof item === "object" && item.filename)
@@ -837,6 +878,7 @@ function populateArtifactPanel(artifact, analysis = null) {
   renderTaskKernelProtocol(artifact.taskKernelProtocol || null);
   renderBenchmarkProfile(artifact.benchmarkProfile || null);
   renderBenchmarkReport(analysis?.benchmarkReport || "");
+  renderGeneratedDownloads(normalizeGeneratedDownloads(artifact.generatedDownloads || []).map((item) => item.filename));
   renderSkills(artifact.skills || []);
   buildLog.textContent = artifact.buildLog || "moon build finished without extra logs.";
   if (artifact.buildLog) {
@@ -866,6 +908,110 @@ function chunkLabelToBytes(label) {
 
 function formatPercent(value) {
   return `${(Number(value || 0) * 100).toFixed(4)}%`;
+}
+
+function isFastqLikeFile(file) {
+  return Boolean(file && /\.(fastq|fq|txt)$/i.test(file.name || ""));
+}
+
+function isSpreadsheetLikeFile(file) {
+  return Boolean(file && /\.(csv|tsv|xlsx|xls)$/i.test(file.name || ""));
+}
+
+function detectAttachedFileType(file) {
+  if (!file) return "unknown";
+  if (isFastqLikeFile(file)) return "fastq";
+  if (isSpreadsheetLikeFile(file)) return "tabular";
+  if (/\.(json|jsonl|txt|log)$/i.test(file.name || "")) return "text";
+  return "binary";
+}
+
+function looksLikeFastqAnalysisPrompt(prompt) {
+  const text = String(prompt || "");
+  return /fastq|n base|n bases|gc ratio|read count|quality|analy[sz]e|count|ratio|碱基|测序|fastq文件/i.test(text);
+}
+
+function looksLikeTabularAnalysisPrompt(prompt) {
+  const text = String(prompt || "");
+  return /csv|xlsx|excel|table|tabular|row|rows|column|filter|sum|amount|record|records|analy[sz]e|extract|monthly|spend|expense|表格|列名|金额|支出/i.test(text);
+}
+
+function inferRemoteArtifactMode(prompt, fallbackMode = selectedMode, fileInfo = currentFileInfo) {
+  if (fallbackMode && fallbackMode !== "chat") {
+    return fallbackMode;
+  }
+
+  if ((fileInfo?.detectedType === "fastq" || isFastqLikeFile(currentBrowserFile)) && looksLikeFastqAnalysisPrompt(prompt)) {
+    return "fastq-agent";
+  }
+
+  if (/game|canvas|sprite|platformer|browser game/i.test(String(prompt || ""))) {
+    return "game-agent";
+  }
+
+  if (/moonbit|wasm|webassembly|workflow|tool|agent|json/i.test(String(prompt || ""))) {
+    return "moonbit-task";
+  }
+
+  return "chat";
+}
+
+function inferAttachedTaskDescriptor(prompt, file = currentBrowserFile) {
+  if (!file) return null;
+  const fileType = detectAttachedFileType(file);
+
+  if (fileType === "fastq" && looksLikeFastqAnalysisPrompt(prompt)) {
+    return {
+      id: "fastq-analysis",
+      mode: "fastq-agent",
+      fileType,
+      fileInfo: {
+        path: file.name,
+        sizeBytes: file.size,
+        detectedType: "fastq",
+      },
+      extraRequirements: [
+        "This is an attached-file FastQ analysis request.",
+        "Do not write a standalone parser in main.mbt that scans a whole in-memory string using unsupported mutable syntax.",
+        "Do not use `var`.",
+        "Do not use `String.chars()` or similar unsupported iteration helpers.",
+        "Keep main.mbt minimal and compile-first.",
+        "Put browser-analysis helpers in helper files and export simple numeric functions for JavaScript.",
+        "The browser host will stream the attached file and call the exported FastQ helper functions.",
+        "main.mbt may print a short analysis banner, but the exported helper functions are mandatory.",
+      ].join("\n"),
+      validateArtifact: validateFastqArtifactExports,
+      successSummary(fileName, resultSummary) {
+        return `MoonAP generated a FastQ analyzer for ${fileName} and finished browser-local analysis.\n\n${resultSummary}`;
+      },
+    };
+  }
+
+  if (fileType === "tabular" && looksLikeTabularAnalysisPrompt(prompt)) {
+    return {
+      id: "tabular-analysis",
+      mode: "moonbit-task",
+      fileType,
+      fileInfo: {
+        path: file.name,
+        sizeBytes: file.size,
+        detectedType: "tabular",
+      },
+      extraRequirements: [
+        "This is an attached tabular-file analysis request.",
+        "Treat the attachment as a spreadsheet or CSV-style table, not as a raw binary blob to parse directly in MoonBit.",
+        "The browser host may preprocess CSV/XLSX into rows, columns, and structured records before invoking the MoonBit task kernel.",
+        "Generate a MoonBit task artifact that is ready for structured row filtering, aggregation, and result formatting.",
+        "Keep the project compile-first and multi-task friendly so the same protocol can later be reused for CSV and XLSX analysis.",
+      ].join("\n"),
+      validateArtifact: null,
+      successSummary(fileName) {
+        return `MoonAP generated a structured table-analysis artifact for ${fileName}.`;
+      },
+    };
+  }
+
+  return null;
 }
 
 function buildBrowserBenchmarkReport(file, metrics, chunkSizes, durationMs) {
@@ -1082,7 +1228,7 @@ function browserTaskKernelProtocol(mode) {
   };
 }
 
-function buildBrowserRemoteSystemPrompt(mode, prompt = "") {
+function buildBrowserRemoteSystemPrompt(mode, prompt = "", fileInfo = null, extraRequirements = "") {
   const protocol = browserTaskKernelProtocol(mode);
   const fileStructureBlock = protocol.protocolName === "moonap.workflow.whole-file.v1"
     ? [
@@ -1108,6 +1254,8 @@ function buildBrowserRemoteSystemPrompt(mode, prompt = "") {
             "- cmd/main/fastq_stats.mbt",
             "- cmd/main/fastq_chunking.mbt",
             "Optionally add cmd/main/fastq_wasm_runtime.mbt when exporting browser helpers.",
+            "The Wasm module must export these functions for browser-local FastQ analysis: is_n_base, is_gc_base, is_sequence_state, next_fastq_state, accumulate_read_count, accumulate_total_bases, accumulate_n_bases, accumulate_gc_bases, update_longest_read, update_shortest_read.",
+            "Keep the exported functions simple and numeric so JavaScript can call them directly from WebAssembly exports.",
           ].join("\n")
         : "Prefer a small multi-file project whose files are actually used by main.mbt.";
 
@@ -1130,41 +1278,108 @@ function buildBrowserRemoteSystemPrompt(mode, prompt = "") {
       "Avoid random-number APIs or numeric reinterpret tricks unless absolutely required. Prefer deterministic generation from the record index.",
       "Use simple MoonBit 0.9-compatible syntax.",
       "Avoid StringView replace chains like raw.trim().replace(...).",
-      "Optional key: generatedDownloads. Use it when the task is supposed to create downloadable files from Wasm output.",
-      `Protocol: ${protocol.protocolName}`,
-      `Lifecycle: ${protocol.initFn} -> ${protocol.ingestFn} -> ${protocol.finalizeFn}`,
-      fileStructureBlock,
-      buildGeneratedFilePromptBlock(prompt),
-    ].join("\n");
+    "Optional key: generatedDownloads. Use it when the task is supposed to create downloadable files from Wasm output.",
+    `Protocol: ${protocol.protocolName}`,
+    `Lifecycle: ${protocol.initFn} -> ${protocol.ingestFn} -> ${protocol.finalizeFn}`,
+    fileInfo ? `Attached browser-local file: ${fileInfo.path} (${fileInfo.sizeBytes} bytes), detectedType=${fileInfo.detectedType || "unknown"}.` : "",
+    extraRequirements || "",
+    fileStructureBlock,
+    buildGeneratedFilePromptBlock(prompt),
+  ].join("\n");
 }
 
-function buildBrowserRepairPrompt(prompt, artifact, compileError) {
+function buildBrowserRepairPrompt(prompt, artifact, compileError, extraRequirements = "") {
   return [
     "Repair the previous MoonBit artifact so it compiles to WebAssembly.",
     "Return strict JSON only with the same MoonAP artifact schema.",
     `Original user request:\n${prompt}`,
     `Compiler error:\n${compileError}`,
     "If the error mentions print_string, replace it with a compile-safe output strategy.",
+    "If the error mentions missing FastQ analysis exports, add explicit exported FastQ helper functions for browser analysis.",
+    "For FastQ browser analysis, the Wasm must export: is_n_base, is_gc_base, is_sequence_state, next_fastq_state, accumulate_read_count, accumulate_total_bases, accumulate_n_bases, accumulate_gc_bases, update_longest_read, update_shortest_read.",
     "Use println for normal output.",
     "For file generation tasks, assemble the full file text or JSON bundle and print it once with println.",
     "Avoid deprecated numeric conversion chains and avoid unnecessary randomness.",
     "Keep the project small and compile-first.",
     "Prefer a single-package cmd/main project unless multiple packages are essential.",
+    extraRequirements || "",
     "Previous artifact JSON:",
     JSON.stringify(artifact, null, 2),
   ].join("\n\n");
 }
 
-async function compileArtifactFromBrowser(prompt, artifact, noFallback = false) {
+async function validateFastqArtifactExports(artifact) {
+  if (!artifact?.wasmBase64) {
+    throw new Error("The generated artifact does not include Wasm output.");
+  }
+
+  const module = await instantiateWasmModule(artifact.wasmBase64);
+  const exports = module.instance.exports;
+  const required = [
+    "is_n_base",
+    "is_gc_base",
+    "is_sequence_state",
+    "next_fastq_state",
+    "accumulate_read_count",
+    "accumulate_total_bases",
+    "accumulate_n_bases",
+    "accumulate_gc_bases",
+    "update_longest_read",
+    "update_shortest_read",
+  ];
+  const missing = required.filter((name) => typeof exports[name] !== "function");
+  if (missing.length) {
+    throw new Error(`The generated Wasm artifact does not expose required FastQ analysis exports: ${missing.join(", ")}`);
+  }
+}
+
+async function executeAttachedTaskDescriptor(taskDescriptor, prompt, payload) {
+  if (!taskDescriptor) {
+    throw new Error("MoonAP could not infer a supported attached-file task from this prompt.");
+  }
+
+  if (taskDescriptor.id === "fastq-analysis") {
+    populateArtifactPanel(payload.artifact, null);
+    adapterBadge.textContent = `adapter: ${payload.artifact?.adapter || "browser-remote-openai-compatible"}`;
+
+    if (!latestWasmBase64) {
+      throw new Error("MoonAP did not receive a Wasm module for the attached FastQ analysis.");
+    }
+
+    analysisOutput.textContent = "MoonAP compiled the FastQ analyzer. Running WebAssembly in the browser...";
+    logProgress("FastQ analyzer compiled. Starting browser-local Wasm execution over the attached file.");
+    const wasmResult = await analyzeBrowserFastqFileWithWasm(currentBrowserFile, latestWasmBase64);
+    const result = createFastqAnalysisFromWasm(currentBrowserFile, wasmResult);
+    latestBrowserAnalysis = result;
+    analysisOutput.textContent = result.summary;
+    renderBenchmarkProfile(result.benchmarkProfile);
+    renderBenchmarkReport(result.benchmarkReport);
+    updatePipeline("run-complete");
+    showInspector(true);
+    const assistantSummary = taskDescriptor.successSummary(currentBrowserFile.name, result.summary);
+    addMessage("assistant", `${payload.assistant?.content || "MoonAP generated a MoonBit artifact from your prompt."}\n\n${assistantSummary}`);
+    history.push({ role: "user", content: prompt });
+    history.push({ role: "assistant", content: `${payload.assistant?.content || "MoonAP generated a MoonBit artifact from your prompt."}\n\n${assistantSummary}` });
+    setTaskStatus("Task completed. Ready for the next prompt.");
+    return;
+  }
+
+  throw new Error(`MoonAP inferred the attached-file task "${taskDescriptor.id}", but its browser execution path is not implemented yet.`);
+}
+
+async function compileArtifactFromBrowser(prompt, artifact, noFallback = false, options = {}) {
+  const mode = options.modeOverride || selectedMode;
+  const fileInfo = options.fileInfoOverride || currentFileInfo;
+  const analysis = Object.prototype.hasOwnProperty.call(options, "analysisOverride") ? options.analysisOverride : latestBrowserAnalysis;
   logProgress(`Submitting MoonBit artifact for ${noFallback ? "strict compile" : "compile with fallback"} on the server.`);
   const compileResponse = await fetch("/api/artifacts/compile", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       prompt,
-      selectedMode,
-      fileInfo: currentFileInfo,
-      analysis: latestBrowserAnalysis,
+      selectedMode: mode,
+      fileInfo,
+      analysis,
       artifact,
       noFallback,
     }),
@@ -1210,8 +1425,13 @@ async function browserCallRemoteModel({ messages, responseFormat = null }) {
   throw new Error("Browser-side remote model returned an empty response.");
 }
 
-async function requestBrowserRemoteArtifact(prompt) {
-  const systemPrompt = buildBrowserRemoteSystemPrompt(selectedMode, prompt);
+async function requestBrowserRemoteArtifact(prompt, options = {}) {
+  const fileInfo = options.fileInfoOverride || currentFileInfo;
+  const mode = inferRemoteArtifactMode(prompt, options.modeOverride || selectedMode, fileInfo);
+  const analysis = Object.prototype.hasOwnProperty.call(options, "analysisOverride") ? options.analysisOverride : latestBrowserAnalysis;
+  const extraRequirements = String(options.extraRequirements || "").trim();
+  const artifactValidator = typeof options.artifactValidator === "function" ? options.artifactValidator : null;
+  const systemPrompt = buildBrowserRemoteSystemPrompt(mode, prompt, fileInfo, extraRequirements);
   logProgress("Calling the browser-connected cloud LLM to generate a MoonBit artifact.");
   let content = await browserCallRemoteModel({
     responseFormat: { type: "json_object" },
@@ -1228,14 +1448,29 @@ async function requestBrowserRemoteArtifact(prompt) {
 
   while (repairCount < 3) {
     try {
-      payload = await compileArtifactFromBrowser(prompt, parsed, true);
+      payload = await compileArtifactFromBrowser(prompt, parsed, true, {
+        modeOverride: mode,
+        fileInfoOverride: fileInfo,
+        analysisOverride: analysis,
+      });
+      if (artifactValidator) {
+        await artifactValidator(payload.artifact);
+        logProgress("Validated attachment-task exports for browser-local analysis.");
+      } else if (mode === "fastq-agent") {
+        await validateFastqArtifactExports(payload.artifact);
+        logProgress("Validated required FastQ Wasm exports for browser-local analysis.");
+      }
       logProgress("Remote MoonBit artifact compiled successfully without fallback.");
       break;
     } catch (error) {
       repairCount += 1;
       logProgress(`Strict compile failed. Starting repair round ${repairCount}.`);
       if (repairCount >= 3) {
-        payload = await compileArtifactFromBrowser(prompt, parsed, false);
+        payload = await compileArtifactFromBrowser(prompt, parsed, false, {
+          modeOverride: mode,
+          fileInfoOverride: fileInfo,
+          analysisOverride: analysis,
+        });
         logProgress("Strict compile still failed after repair rounds, so MoonAP requested compile with fallback.");
         break;
       }
@@ -1246,7 +1481,7 @@ async function requestBrowserRemoteArtifact(prompt) {
           { role: "system", content: systemPrompt },
           {
             role: "user",
-            content: buildBrowserRepairPrompt(prompt, parsed, error.message),
+            content: buildBrowserRepairPrompt(prompt, parsed, error.message, extraRequirements),
           },
         ],
         });
@@ -1257,18 +1492,46 @@ async function requestBrowserRemoteArtifact(prompt) {
 
   return {
     mode: "analysis",
-    experienceMode: `${selectedMode}-browser-remote`,
+    experienceMode: `${mode}-browser-remote`,
     assistant: {
       role: "assistant",
-      content: `MoonAP used your browser-connected LLM to generate a MoonBit artifact for ${selectedMode}.${repairCount > 0 ? `\n\nrepair rounds: ${repairCount}` : ""}\n\n${summarizeArtifact(payload.artifact)}`,
+      content: `MoonAP used your browser-connected LLM to generate a MoonBit artifact for ${mode}.${repairCount > 0 ? `\n\nrepair rounds: ${repairCount}` : ""}\n\n${summarizeArtifact(payload.artifact)}`,
     },
     artifact: {
       ...payload.artifact,
       adapter: payload.artifact?.adapter || "browser-remote-openai-compatible",
     },
-    fileInfo: currentFileInfo,
-    analysis: latestBrowserAnalysis,
+    fileInfo,
+    analysis,
   };
+}
+
+async function handleAttachedFastqPrompt(prompt) {
+  if (!currentBrowserFile) {
+    throw new Error("Attach a FastQ file first.");
+  }
+  if (!hasRemoteConfig()) {
+    throw new Error("Attached-file analysis in chat mode needs a configured cloud LLM API. Configure LLM, or click SKILL and use the built-in FastQ workflow.");
+  }
+  const attachmentTask = inferAttachedTaskDescriptor(prompt, currentBrowserFile);
+  if (!attachmentTask) {
+    throw new Error("MoonAP could not infer a supported attached-file task from this prompt.");
+  }
+
+  currentFileInfo = attachmentTask.fileInfo;
+  modeBadge.textContent = "mode: attached-fastq";
+  experienceBadge.textContent = "workflow: attached-fastq -> moonbit-wasm";
+  analysisOutput.textContent = "MoonAP is generating a MoonBit FastQ analyzer for the attached file...";
+  logProgress(`Attached FastQ prompt detected for ${currentBrowserFile.name}.`);
+
+  const payload = await requestBrowserRemoteArtifact(prompt, {
+    modeOverride: attachmentTask.mode,
+    fileInfoOverride: currentFileInfo,
+    analysisOverride: null,
+    extraRequirements: attachmentTask.extraRequirements,
+    artifactValidator: attachmentTask.validateArtifact,
+  });
+  await executeAttachedTaskDescriptor(attachmentTask, prompt, payload);
 }
 
 async function requestBrowserRemoteChat(prompt) {
@@ -1386,6 +1649,7 @@ async function executeLatestWasm(auto = false) {
     const output = await runWasm(latestWasmBase64);
     const downloaded = maybeDownloadGeneratedOutputs(output, auto);
     if (downloaded.length) {
+      renderGeneratedDownloads(downloaded);
       programOutput.textContent = [
         "MoonAP generated downloadable files from the Wasm app.",
         ...downloaded.map((item) => `- ${item}`),
@@ -1428,20 +1692,21 @@ async function analyzeBrowserFastqFileWithWasm(file, wasmBase64) {
   const module = await instantiateWasmModule(wasmBase64);
   const exports = module.instance.exports;
 
-  if (typeof exports.is_n_base !== "function" || typeof exports.is_gc_base !== "function" || typeof exports.is_sequence_line !== "function") {
-    throw new Error("The generated Wasm artifact does not expose FastQ analysis functions.");
-  }
-  if (
-    typeof exports.is_sequence_state !== "function" ||
-    typeof exports.next_fastq_state !== "function" ||
-    typeof exports.accumulate_read_count !== "function" ||
-    typeof exports.accumulate_total_bases !== "function" ||
-    typeof exports.accumulate_n_bases !== "function" ||
-    typeof exports.accumulate_gc_bases !== "function" ||
-    typeof exports.update_longest_read !== "function" ||
-    typeof exports.update_shortest_read !== "function"
-  ) {
-    throw new Error("The generated Wasm artifact does not expose FastQ accumulation helpers.");
+  const missing = [
+    "is_n_base",
+    "is_gc_base",
+    "is_sequence_state",
+    "next_fastq_state",
+    "accumulate_read_count",
+    "accumulate_total_bases",
+    "accumulate_n_bases",
+    "accumulate_gc_bases",
+    "update_longest_read",
+    "update_shortest_read",
+  ].filter((name) => typeof exports[name] !== "function");
+
+  if (missing.length) {
+    throw new Error(`The generated Wasm artifact does not expose FastQ analysis functions: ${missing.join(", ")}`);
   }
 
   const chunkSizes = chooseBrowserChunkSizes(file.size);
@@ -1520,6 +1785,7 @@ function resetArtifactPanelForChat() {
   progressLogEntries = [];
   renderProgressLog();
   analysisOutput.textContent = "No local analysis was run for this message.";
+  renderGeneratedDownloads([]);
   artifactTitle.textContent = "No report app generated";
   artifactSummary.textContent = "Chat mode stays conversational. Switch to MoonBit Builder, FastQ Analyst, or Game Studio to produce executable MoonBit apps.";
   artifactWarning.textContent = "";
@@ -1557,6 +1823,7 @@ async function sendPrompt(prompt) {
     adapterBadge.textContent = getLlmConfig().baseUrl ? "adapter: remote-chat" : "adapter: local-chat";
     logProgress("Completed as a chat response without a MoonBit artifact.");
     resetArtifactPanelForChat();
+    setTaskStatus("Task completed. Ready for the next prompt.");
     return;
   }
 
@@ -1574,6 +1841,8 @@ async function sendPrompt(prompt) {
       addMessage("assistant", `MoonAP generated the Wasm app, but auto-run failed: ${error.message}`);
     }
   }
+
+  setTaskStatus("Task completed. Ready for the next prompt.");
 }
 
 async function refreshHealth() {
@@ -1602,6 +1871,18 @@ form.addEventListener("submit", async (event) => {
         await handleFastqSampleRequest(prompt, fastqSampleRequest);
         return;
       }
+      const attachedTask = currentBrowserFile ? inferAttachedTaskDescriptor(prompt, currentBrowserFile) : null;
+      if (attachedTask) {
+        if (!hasRemoteConfig()) {
+          throw new Error("This attached-file task needs a configured cloud LLM API. If you want a ready-made path without LLM, click SKILL and use a built-in workflow.");
+        }
+        if (attachedTask.id === "fastq-analysis") {
+          await handleAttachedFastqPrompt(prompt);
+          return;
+        }
+        throw new Error(`MoonAP recognized an attached-file task (${attachedTask.id}), but that execution path is not implemented yet.`);
+        return;
+      }
       await sendPrompt(prompt);
     } catch (error) {
       logProgress(`Request failed: ${error.message}`);
@@ -1609,11 +1890,16 @@ form.addEventListener("submit", async (event) => {
     modeBadge.textContent = "mode: error";
     adapterBadge.textContent = "adapter: error";
     runBadge.textContent = "wasm: failed";
+    setTaskStatus(`Task failed: ${error.message}`);
     } finally {
       sendButton.disabled = false;
       sendButton.textContent = "Send";
     }
   });
+
+attachFileButton.addEventListener("click", () => {
+  browserFileInput.click();
+});
 
   browserFileInput.addEventListener("change", () => {
   currentBrowserFile = browserFileInput.files?.[0] || null;
@@ -1622,10 +1908,12 @@ form.addEventListener("submit", async (event) => {
   renderBrowserFileInfo(currentBrowserFile);
     updateFastqActionState(currentBrowserFile ? "ready-to-analyze" : "choose-file");
     analysisOutput.textContent = currentBrowserFile
-      ? "Browser-local file selected. Click Analyze In Browser to start MoonBit Wasm analysis."
+      ? "File attached. Send a FastQ analysis prompt, or open the FastQ skill workflow if you want to run the built-in path."
       : "No local analysis yet.";
     if (currentBrowserFile) {
       logProgress(`Selected local browser file ${currentBrowserFile.name} (${currentBrowserFile.size} bytes).`);
+    } else {
+      setTaskStatus("Ready for the next prompt.");
     }
   });
 
@@ -1732,19 +2020,21 @@ clearFileButton.addEventListener("click", () => {
   renderBrowserFileInfo(null);
   updateFastqActionState("choose-file");
   analysisOutput.textContent = "No local analysis yet.";
+  renderGeneratedDownloads([]);
   renderTaskKernelProtocol(null);
   renderBenchmarkProfile(null);
   renderBenchmarkReport("");
   showInspector(false);
+  setTaskStatus("Ready for the next prompt.");
   addMessage("assistant", "Cleared the current local file context.");
 });
 
-  saveSettingsButton.addEventListener("click", () => {
-    saveLlmConfig();
-    llmSettingsDialog.close();
-    logProgress("Saved browser-local LLM API settings.");
-    addMessage("assistant", "Saved the current LLM API settings for this browser.");
-  });
+saveSettingsButton.addEventListener("click", () => {
+  saveLlmConfig();
+  llmSettingsDialog.close();
+  logProgress("Saved browser-local LLM API settings.");
+  addMessage("assistant", "Saved the current LLM API settings for this browser.");
+});
 
 runButton.addEventListener("click", async () => {
   if (!latestWasmBase64) return;

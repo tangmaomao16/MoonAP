@@ -4,6 +4,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { PORT, ROOT_DIR } from "./lib/config.mjs";
 import { generateMoonAPResponse } from "./lib/chat-engine-v3.mjs";
+import { writeFastqBenchmarkArtifacts } from "./lib/fastq-benchmark.mjs";
 import { analyzeLocalFile, inspectLocalFile } from "./lib/local-file-service.mjs";
 import { generateMockChatReply, generateMockMoonBit } from "./lib/mock-v3.mjs";
 import { compileMoonBitToWasm } from "./lib/moonbit-compiler.mjs";
@@ -252,6 +253,31 @@ const server = http.createServer(async (request, response) => {
         requestedAnalysis,
       });
       sendJson(response, 200, { ok: true, fileInfo, analysis });
+    } catch (error) {
+      sendJson(response, 500, {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && request.url === "/api/benchmarks/fastq") {
+    try {
+      const body = await readJsonBody(request);
+      const includeSamples = body?.includeSamples !== false;
+      const compileArtifact = body?.compileArtifact !== false;
+      const result = await writeFastqBenchmarkArtifacts({
+        includeSamples,
+        compileArtifact,
+      });
+      sendJson(response, 200, {
+        ok: true,
+        report: result.report,
+        markdown: result.markdown,
+        jsonPath: result.jsonPath,
+        markdownPath: result.markdownPath,
+      });
     } catch (error) {
       sendJson(response, 500, {
         ok: false,
