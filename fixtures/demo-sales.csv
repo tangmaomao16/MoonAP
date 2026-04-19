@@ -1,0 +1,9 @@
+order_id,customer,region,quantity,unit_price,discount
+1001,Alice,North,3,19.99,0
+1002,Bob,South,1,49.50,5
+1003,Chen,East,7,8.75,
+1004,Diana,West,2,120.00,10
+1005,Evan,North,,15.25,0
+1006,Fatima,South,5,23.40,2.5
+1007,Grace,East,4,,0
+1008,Hiro,West,6,11.10,1

@@ -1,0 +1,345 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "tangmaomao16/moonap_mb_server"
+
+import {
+  "moonbitlang/core/debug",
+  "moonbitlang/core/json",
+}
+
+// Values
+pub fn app_state() -> MoonApAppState
+
+pub fn app_state_json() -> String
+
+pub async fn artifact_compile_probe(String, formal_verification? : Bool) -> ArtifactCompileReport
+
+pub async fn artifact_compile_probe_json(String, formal_verification? : Bool) -> String
+
+pub fn artifact_pipeline() -> Array[ArtifactPipelineStep]
+
+pub fn async_runtime_marker() -> Int64
+
+pub fn build_prompt_plan_json(String, String) -> String
+
+pub fn builtin_skill_hub() -> SkillHubIndex
+
+pub fn builtin_skill_hub_json() -> String
+
+pub fn builtin_skill_manifests() -> Array[SkillManifest]
+
+pub fn choose_skill(String, String) -> String
+
+pub fn extract_moonbit_source(String) -> String
+
+pub fn file_preview_policy() -> FilePreviewPolicy
+
+pub fn formal_verification_policy() -> FormalVerificationPolicy
+
+pub fn formal_verification_policy_json() -> String
+
+pub fn generic_task_kernel_protocol() -> TaskKernelProtocol
+
+pub fn health() -> ServerHealth
+
+pub fn health_json() -> String
+
+pub fn large_file_policy() -> LargeFilePolicy
+
+pub fn large_file_policy_json() -> String
+
+pub fn llm_router_policy() -> LlmRouterPolicy
+
+pub fn normalize_agent_context(String, String, String, String, Int, String, String) -> AgentSessionContext
+
+pub fn normalize_agent_context_json(String, String, String, String, Int, String, String) -> String
+
+pub fn normalize_virtual_path(String) -> String
+
+pub fn path_last_segment(String) -> String
+
+pub fn personal_skill_set_json() -> String
+
+pub fn personal_skill_set_policy() -> PersonalSkillSetPolicy
+
+pub fn policies() -> ServerPolicies
+
+pub fn policies_json() -> String
+
+pub fn public_skill_hub_url() -> String
+
+pub fn route_agent_json(String, String) -> String
+
+pub fn route_table() -> Array[ServerRoute]
+
+pub fn skill_registry() -> Array[SkillSummary]
+
+pub fn skill_run_plan_json(String) -> String
+
+pub fn summarize_compile_output(String) -> CompileErrorSummary
+
+pub fn synthetic_data_policy() -> SyntheticDataPolicy
+
+// Errors
+
+// Types and methods
+pub struct AgentMessage {
+  role : String
+  content : String
+  timestamp : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct AgentSessionContext {
+  session_id : String
+  selected_mode : String
+  active_skill : String
+  messages : Array[AgentMessage]
+  attachments : Array[FileAttachment]
+  llm_receives_file_contents : Bool
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct ArtifactCompileReport {
+  ok : Bool
+  stage : String
+  command : String
+  cwd : String
+  source_path : String
+  wasm_path : String
+  exit_code : Int
+  source_bytes : Int
+  output : String
+  note : String
+  summary_kind : String
+  primary_file : String
+  primary_line : Int
+  summary_excerpt : String
+  likely_cause : String
+  repair_hint : String
+  trimmed_output : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct ArtifactPipelineStep {
+  name : String
+  phase : String
+  enabled_by_default : Bool
+  user_configurable : Bool
+  summary : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct CompileErrorSummary {
+  kind : String
+  primary_file : String
+  primary_line : Int
+  excerpt : String
+  likely_cause : String
+  repair_hint : String
+  trimmed_output : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct EffectiveSkillParameter {
+  name : String
+  value : String
+  default_used : Bool
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct FileAttachment {
+  name : String
+  size_bytes : Int
+  detected_type : String
+  privacy_level : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct FilePreviewPolicy {
+  max_preview_bytes : Int
+  max_preview_lines : Int
+  send_large_file_contents_to_llm : Bool
+  supported_types : Array[String]
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct FormalVerificationPolicy {
+  available_in_moonbit_version : String
+  enabled_by_default : Bool
+  user_toggle_label : String
+  pipeline_position : String
+  planned_command : String
+  proof_artifacts : Array[String]
+  contract_features : Array[String]
+  fallback_when_disabled : String
+  status : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct LargeFilePolicy {
+  default_chunk_size_bytes : Int
+  max_file_size_label : String
+  browser_local_streaming : Bool
+  uploaded_bytes_default : Int
+  llm_receives_file_contents : Bool
+  progress_events : Array[String]
+  supported_streaming_types : Array[String]
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct LlmModel {
+  provider : String
+  model : String
+  label : String
+  priority : Int
+  enabled_by_default : Bool
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct LlmRouterPolicy {
+  default_provider : String
+  browser_keys_only : Bool
+  rate_limit_cooldown_ms : Int
+  network_cooldown_ms : Int
+  models : Array[LlmModel]
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct MoonApAppState {
+  tagline : String
+  llm_status : String
+  work_mode : String
+  chat_enabled : Bool
+  skill_enabled : Bool
+  public_skill_hub_url : String
+  personal_skill_set : PersonalSkillSetPolicy
+  formal_verification : FormalVerificationPolicy
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct PersonalSkillSetPolicy {
+  name : String
+  default_root : String
+  mirrors_hub_layout : Bool
+  save_generated_skills : Bool
+  validation_required : Bool
+  install_sources : Array[String]
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct PromptPlan {
+  system_identity : String
+  user_intent : String
+  target_language : String
+  artifact_required : Bool
+  privacy_rule : String
+  formal_verification_requested : Bool
+  kernel_protocol : TaskKernelProtocol
+  active_skill : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct ServerHealth {
+  ok : Bool
+  name : String
+  server : String
+  moonbit_owned : Bool
+  version : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct ServerPolicies {
+  routes : Array[ServerRoute]
+  llm_router : LlmRouterPolicy
+  file_preview : FilePreviewPolicy
+  task_kernel : TaskKernelProtocol
+  artifact_pipeline : Array[ArtifactPipelineStep]
+  formal_verification : FormalVerificationPolicy
+  large_file : LargeFilePolicy
+  synthetic_data : SyntheticDataPolicy
+  skills : Array[SkillSummary]
+  skill_hub : SkillHubIndex
+  personal_skill_set : PersonalSkillSetPolicy
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct ServerRoute {
+  http_method : String
+  path : String
+  category : String
+  summary : String
+  moonbit_owned : Bool
+  adapter_required : Bool
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct SkillHubIndex {
+  schema_version : String
+  name : String
+  url : String
+  layout : String
+  skills : Array[SkillManifest]
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct SkillManifest {
+  schema_version : String
+  id : String
+  name : String
+  domain : String
+  category_path : String
+  summary : String
+  description_file : String
+  program_dir : String
+  input_types : Array[String]
+  parameters : Array[SkillParameter]
+  runtime : SkillRuntime
+  privacy : SkillPrivacy
+  llm_required : Bool
+  anthropic_skill_compatible : Bool
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct SkillParameter {
+  name : String
+  label : String
+  value_kind : String
+  default_value : String
+  required : Bool
+  allowed_values : Array[String]
+  summary : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct SkillPrivacy {
+  file_contents_stay_local : Bool
+  llm_receives_file_contents : Bool
+  llm_receives_metadata : Bool
+  user_approval_required_for_upload : Bool
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct SkillRunPlan {
+  skill_id : String
+  source : String
+  program_dir : String
+  compile_target : String
+  protocol : String
+  browser_local : Bool
+  effective_parameters : Array[EffectiveSkillParameter]
+  optional_pipeline_steps : Array[ArtifactPipelineStep]
+  next_step : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct SkillRuntime {
+  kind : String
+  compile_target : String
+  protocol : String
+  program_dir : String
+  browser_local : Bool
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct SkillSummary {
+  name : String
+  label : String
+  input_types : Array[String]
+  protocol : String
+  first_demo : Bool
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct SyntheticDataPolicy {
+  llm_outputs_recipe_only : Bool
+  generator_runs_local : Bool
+  default_seed : Int
+  planned_generators : Array[String]
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct TaskKernelProtocol {
+  name : String
+  lifecycle : Array[String]
+  input_modes : Array[String]
+  result_shape : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+// Type aliases
+
+// Traits
+

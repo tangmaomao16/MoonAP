@@ -1,0 +1,7 @@
+// import {
+//   "tangmaomao16/moonap_mb_server" @lib,
+// }
+
+options(
+  "is-main": true,
+)

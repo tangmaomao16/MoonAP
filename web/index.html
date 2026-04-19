@@ -1,97 +1,39 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>MoonAP</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
-    <div class="page-shell">
-      <section class="hero-card">
-        <p class="eyebrow">MoonAP</p>
-        <h1>自然语言生成 MoonBit，编译成 WebAssembly，并直接在浏览器中运行。</h1>
-        <p class="hero-copy">
-          这是一版面向比赛原型的聊天式网页。你可以描述想要的功能，系统会生成 MoonBit 程序、调用
-          <code>moon build --target wasm</code> 编译，再把程序放进浏览器运行。
-        </p>
-        <div class="hero-badges">
-          <span>聊天式交互</span>
-          <span>MoonBit 代码生成</span>
-          <span>Wasm 浏览器执行</span>
-        </div>
+    <main class="workspace">
+      <section class="chat">
+        <header>
+          <p class="eyebrow">MoonBit Agent Playground</p>
+          <h1>MoonAP</h1>
+          <p>Turn natural language into MoonBit task kernels, compile them to WebAssembly, and run them against local browser files.</p>
+        </header>
+
+        <div id="messages" class="messages" aria-live="polite"></div>
+
+        <form id="chatForm" class="composer">
+          <label>
+            <span>Message</span>
+            <textarea id="message" rows="4">Count N bases in this FastQ file without uploading its contents.</textarea>
+          </label>
+          <div class="controls">
+            <input id="fileInput" type="file" />
+            <button type="submit">Send</button>
+          </div>
+        </form>
       </section>
 
-      <main class="workspace">
-        <section class="chat-panel">
-          <div class="panel-header">
-            <div>
-              <p class="panel-label">Conversation</p>
-              <h2>需求对话</h2>
-            </div>
-            <button id="seed-demo" class="ghost-button">填入示例</button>
-          </div>
-
-          <div id="messages" class="messages"></div>
-
-          <form id="chat-form" class="composer">
-            <textarea
-              id="prompt-input"
-              placeholder="例如：请帮我写一个 MoonBit 程序，计算 1 到 20 的和，并输出结果。"
-              rows="4"
-            ></textarea>
-            <div class="composer-footer">
-              <p class="hint">未配置远端模型时，系统会先用本地规则生成器完成原型演示。</p>
-              <button type="submit" id="send-button">生成并编译</button>
-            </div>
-          </form>
-        </section>
-
-        <section class="artifact-panel">
-          <div class="panel-header">
-            <div>
-              <p class="panel-label">Artifact</p>
-              <h2>代码与运行结果</h2>
-            </div>
-            <div class="status-group">
-              <span id="adapter-badge" class="status-badge">adapter: waiting</span>
-              <span id="run-badge" class="status-badge">wasm: idle</span>
-            </div>
-          </div>
-
-          <div class="result-card">
-            <h3 id="artifact-title">等待生成</h3>
-            <p id="artifact-summary">生成完成后，这里会显示方案摘要、MoonBit 代码和运行输出。</p>
-            <p id="artifact-warning" class="warning"></p>
-          </div>
-
-          <div class="grid">
-            <section class="code-card">
-              <div class="subheader">
-                <h3>MoonBit</h3>
-                <button id="run-button" class="ghost-button" disabled>在浏览器运行</button>
-              </div>
-              <pre id="code-output"><code>// waiting for generated code...</code></pre>
-            </section>
-
-            <section class="output-card">
-              <div class="subheader">
-                <h3>Program Output</h3>
-              </div>
-              <pre id="program-output">waiting for wasm...</pre>
-            </section>
-          </div>
-
-          <section class="build-card">
-            <div class="subheader">
-              <h3>Build Log</h3>
-            </div>
-            <pre id="build-log">moon build output will appear here.</pre>
-          </section>
-        </section>
-      </main>
-    </div>
-
-    <script type="module" src="/main.js"></script>
+      <aside class="panel">
+        <h2>MoonBit-owned State</h2>
+        <pre id="state">{}</pre>
+      </aside>
+    </main>
+    <script type="module" src="/app.js"></script>
   </body>
 </html>

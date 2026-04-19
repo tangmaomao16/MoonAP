@@ -1,5 +1,41 @@
-node_modules/
-.moonap-tmp/
-.moonap-artifacts/
-.moonap-cache/
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# MoonBit build outputs
+_build/
+_build*/
+_build_test_alt/
+target/
+.mooncakes/
+.moonagent/
+.moon/
+
+# IDE / editor state
+.vs/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.swp
+*.swo
+*~
+
+# Logs and temporary files
+logs/
 *.log
+*.tmp
+*.temp
+*.cache
+$null
+
+# Local runtime data and secrets
+.env
+.env.*
+MoonAP-generated-result-files/
+Personal-SKILL-Set/
+Local-SKILL-Hub/
+MoonAP-SKILL/
+MoonAP-SKILL-Hub/

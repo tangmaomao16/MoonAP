@@ -1,0 +1,215 @@
+{
+  "experiment_name": "Free LLM FastQ generator ability of generating MoonBit code",
+  "status": "running",
+  "generated_at": "2026-04-18T15:11:44.910Z",
+  "prompt_protocol": {
+    "system_prompt": "You write MoonBit code.\nReturn only cmd/main/main.mbt.\nNo markdown fences.\nNo explanations.",
+    "user_prompt_mode": "task-only",
+    "repair_mode": "frontier-conversation",
+    "repair_rounds": 2
+  },
+  "benchmarks": [
+    {
+      "id": "FQ1",
+      "title": "FastQ generator",
+      "goal": "Generate a FastQ file generator."
+    }
+  ],
+  "models": [
+    {
+      "provider": "openai",
+      "model": "gpt-5.4",
+      "base_url": "moonap://llm-sim",
+      "api_test": {
+        "status": "ok",
+        "message": "OK",
+        "latency_ms": 11,
+        "http_status": null,
+        "timeout": false,
+        "non_json_response": false
+      },
+      "benchmarks": {
+        "FQ1": {
+          "attempted": true,
+          "raw_codegen_pass": false,
+          "raw_quality_pass": false,
+          "raw_codegen_compile_exit_code": null,
+          "raw_codegen_compile_summary_kind": "",
+          "repair_attempts_used": 0,
+          "assisted_pass": false,
+          "final_quality_pass": false,
+          "final_compile_exit_code": null,
+          "final_compile_summary_kind": "request-error",
+          "final_quality_title": "",
+          "final_quality_summary": "",
+          "final_quality_missing_signals_json": "[]",
+          "final_source_bytes": null,
+          "first_codegen_response_latency_ms": null,
+          "total_time_to_first_compile_success_ms": null
+        }
+      },
+      "notes": {
+        "stalled_or_long_no_response": true,
+        "parser_drift_notes": "",
+        "language_drift_notes": "Timed out after 60s",
+        "final_recommendation_note": "Not yet reliable for the FastQ generator task."
+      }
+    },
+    {
+      "provider": "nvidia",
+      "model": "meta/llama-4-maverick-17b-128e-instruct",
+      "base_url": "https://integrate.api.nvidia.com/v1",
+      "api_test": {
+        "status": "ok",
+        "message": "OK.",
+        "latency_ms": 652,
+        "http_status": null,
+        "timeout": false,
+        "non_json_response": false
+      },
+      "benchmarks": {
+        "FQ1": {
+          "attempted": true,
+          "raw_codegen_pass": false,
+          "raw_quality_pass": false,
+          "raw_codegen_compile_exit_code": -1,
+          "raw_codegen_compile_summary_kind": "name-resolution-error",
+          "repair_attempts_used": 2,
+          "assisted_pass": false,
+          "final_quality_pass": false,
+          "final_compile_exit_code": -1,
+          "final_compile_summary_kind": "target-runtime-error",
+          "final_quality_title": "",
+          "final_quality_summary": "",
+          "final_quality_missing_signals_json": "[]",
+          "final_source_bytes": 817,
+          "first_codegen_response_latency_ms": 7238,
+          "total_time_to_first_compile_success_ms": null
+        }
+      },
+      "notes": {
+        "stalled_or_long_no_response": false,
+        "parser_drift_notes": "",
+        "language_drift_notes": "",
+        "final_recommendation_note": "Not yet reliable for the FastQ generator task."
+      }
+    },
+    {
+      "provider": "zai",
+      "model": "glm-5.1",
+      "base_url": "https://open.bigmodel.cn/api/paas/v4",
+      "api_test": {
+        "status": "ok",
+        "message": "OK",
+        "latency_ms": 1568,
+        "http_status": null,
+        "timeout": false,
+        "non_json_response": false
+      },
+      "benchmarks": {
+        "FQ1": {
+          "attempted": true,
+          "raw_codegen_pass": false,
+          "raw_quality_pass": false,
+          "raw_codegen_compile_exit_code": -1,
+          "raw_codegen_compile_summary_kind": "compile-input",
+          "repair_attempts_used": 2,
+          "assisted_pass": false,
+          "final_quality_pass": false,
+          "final_compile_exit_code": -1,
+          "final_compile_summary_kind": "compile-input",
+          "final_quality_title": "",
+          "final_quality_summary": "",
+          "final_quality_missing_signals_json": "[]",
+          "final_source_bytes": 0,
+          "first_codegen_response_latency_ms": 26577,
+          "total_time_to_first_compile_success_ms": null
+        }
+      },
+      "notes": {
+        "stalled_or_long_no_response": false,
+        "parser_drift_notes": "",
+        "language_drift_notes": "",
+        "final_recommendation_note": "Not yet reliable for the FastQ generator task."
+      }
+    },
+    {
+      "provider": "gemini",
+      "model": "gemini-2.5-flash",
+      "base_url": "https://generativelanguage.googleapis.com",
+      "api_test": {
+        "status": "failed",
+        "message": "Timed out after 15s",
+        "latency_ms": null,
+        "http_status": null,
+        "timeout": true,
+        "non_json_response": false
+      },
+      "benchmarks": {
+        "FQ1": {
+          "attempted": false,
+          "raw_codegen_pass": false,
+          "raw_quality_pass": false,
+          "raw_codegen_compile_exit_code": null,
+          "raw_codegen_compile_summary_kind": "",
+          "repair_attempts_used": 0,
+          "assisted_pass": false,
+          "final_quality_pass": false,
+          "final_compile_exit_code": null,
+          "final_compile_summary_kind": "",
+          "final_quality_title": "",
+          "final_quality_summary": "",
+          "final_quality_missing_signals_json": "[]",
+          "final_source_bytes": null,
+          "first_codegen_response_latency_ms": null,
+          "total_time_to_first_compile_success_ms": null
+        }
+      },
+      "notes": {
+        "stalled_or_long_no_response": true,
+        "parser_drift_notes": "",
+        "language_drift_notes": "",
+        "final_recommendation_note": ""
+      }
+    },
+    {
+      "provider": "siliconflow",
+      "model": "Qwen/Qwen2.5-Coder-32B-Instruct",
+      "base_url": "https://api.siliconflow.cn/v1",
+      "api_test": {
+        "status": "ok",
+        "message": "OK.",
+        "latency_ms": 347,
+        "http_status": null,
+        "timeout": false,
+        "non_json_response": false
+      },
+      "benchmarks": {
+        "FQ1": {
+          "attempted": false,
+          "raw_codegen_pass": false,
+          "raw_quality_pass": false,
+          "raw_codegen_compile_exit_code": null,
+          "raw_codegen_compile_summary_kind": "",
+          "repair_attempts_used": 0,
+          "assisted_pass": false,
+          "final_quality_pass": false,
+          "final_compile_exit_code": null,
+          "final_compile_summary_kind": "",
+          "final_quality_title": "",
+          "final_quality_summary": "",
+          "final_quality_missing_signals_json": "[]",
+          "final_source_bytes": null,
+          "first_codegen_response_latency_ms": null,
+          "total_time_to_first_compile_success_ms": null
+        }
+      },
+      "notes": {
+        "stalled_or_long_no_response": false,
+        "parser_drift_notes": "",
+        "language_drift_notes": "",
+        "final_recommendation_note": ""
+      }
+    }
+  ]
+}
