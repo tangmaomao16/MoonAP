@@ -1925,6 +1925,7 @@ fn normalize_runtime_execution_payload(payload : String) -> String {
   let request_id = extract_json_string_field(payload, "request_id")
   let status = extract_json_string_field(payload, "status")
   let result_kind = extract_json_string_field(payload, "result_kind")
+  let result_mode = extract_json_string_field(payload, "result_mode")
   let summary = extract_json_string_field(payload, "summary")
   let display_text = extract_json_string_field(payload, "display_text")
   let stdout_text = extract_json_string_field(payload, "stdout_text")
@@ -1956,6 +1957,9 @@ fn normalize_runtime_execution_payload(payload : String) -> String {
   ",\n" +
   "  \"result_kind\": " +
   json_string(if result_kind == "" { "text" } else { result_kind }) +
+  ",\n" +
+  "  \"result_mode\": " +
+  json_string(result_mode) +
   ",\n" +
   "  \"summary\": " +
   json_string(summary) +
