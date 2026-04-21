@@ -4,6 +4,13 @@ This document is the release-oriented entry point for the MoonBit Large Software
 
 中文摘要：MoonAP 的最终定位是 **MoonBit Agent Playground**，不是 FastQ 专用工具。项目完成了一条面向软件合成的通用链路：用户用自然语言描述 APP，LLM 生成 MoonBit 程序，MoonAP 编译为 WebAssembly，浏览器在本地运行，成功的 APP 可以保存为 MoonAP SKILL 并复用。FastQ 大文件生成/分析保留为高价值的大文件浏览器本地计算样例，但 v0.1 还覆盖 CSV、JSON、文本分析和多个计算器类通用 APP。
 
+## Paper and DOI
+
+The MoonAP v0.1 paper is archived on Zenodo:
+
+- **DOI:** [10.5281/zenodo.19682015](https://doi.org/10.5281/zenodo.19682015)
+- **Repository PDF:** [paper/moonap-v0.1.pdf](paper/moonap-v0.1.pdf)
+
 ## Project Positioning
 
 MoonAP is a **MoonBit Agent Playground**.

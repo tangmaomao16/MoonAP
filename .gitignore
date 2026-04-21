@@ -31,6 +31,15 @@ logs/
 *.cache
 $null
 
+# LaTeX build intermediates
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.fls
+paper/*.fdb_latexmk
+paper/*.out
+paper/*.synctex.gz
+
 # Local runtime data and secrets
 .env
 .env.*

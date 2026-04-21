@@ -18,6 +18,13 @@ Natural-language task
 
 The original project proposal used large FastQ analysis as the motivating example. The current project is broader: MoonAP is a general platform for generating, running, saving, installing, and reusing browser-local MoonBit apps.
 
+## Paper
+
+The MoonAP v0.1 paper is archived on Zenodo:
+
+- **DOI:** [10.5281/zenodo.19682015](https://doi.org/10.5281/zenodo.19682015)
+- **PDF in this repository:** [paper/moonap-v0.1.pdf](paper/moonap-v0.1.pdf)
+
 ## Screenshots
 
 ![MoonAP browser UI: natural-language MoonBit app generation](imgs/MoonAP-Web-01.png)
